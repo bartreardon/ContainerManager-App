@@ -299,26 +299,35 @@ enum StackTemplates {
     static let codeServer = StackTemplateDef(
         id: "code-server",
         name: "code-server (VS Code)",
-        summary: "VS Code in your browser with a persistent workspace volume. Sign in with the password below.",
+        summary: "VS Code in your browser with a persistent workspace. Sign in with the password below.",
         systemImage: "chevron.left.forwardslash.chevron.right",
         fields: [
             StackTemplateField(key: "name", label: "Stack name", placeholder: "code-server", defaultValue: "code-server"),
             StackTemplateField(key: "password", label: "Password", defaultValue: "changeme", kind: .password),
-            StackTemplateField(key: "port", label: "Web port", placeholder: "8080", defaultValue: "8080", kind: .port),
+            StackTemplateField(key: "port", label: "Web port", placeholder: "8443", defaultValue: "8443", kind: .port),
         ]
     ) { values in
         let name = value(values, "name").sanitizedResourceName
         let password = value(values, "password")
         let webPort = try port(values, "port", label: "Web port")
+        // The linuxserver image starts as root, chowns /config to PUID:PGID, then
+        // drops privileges — so a fresh (root-owned) volume is usable, unlike the
+        // codercom image which runs as a non-root user and can't write to it.
         return StackSpec(
             name: name,
             networkName: "\(name)-net",
             services: [
                 StackServiceSpec(
-                    key: "web", displayName: "code-server", image: "codercom/code-server:latest",
-                    env: ["PASSWORD=\(password)"],
-                    volumes: ["\(name)-data:/home/coder"],
-                    publishPorts: ["\(webPort):8080"]
+                    key: "web", displayName: "code-server", image: "linuxserver/code-server:latest",
+                    env: [
+                        "PASSWORD=\(password)",
+                        "PUID=1000",
+                        "PGID=1000",
+                        "TZ=Etc/UTC",
+                        "DEFAULT_WORKSPACE=/config/workspace",
+                    ],
+                    volumes: ["\(name)-config:/config"],
+                    publishPorts: ["\(webPort):8443"]
                 )
             ],
             webServiceKey: "web", webPort: webPort
