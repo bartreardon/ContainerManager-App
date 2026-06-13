@@ -99,7 +99,8 @@ private struct MachineDetailContent: View {
         VStack(spacing: 0) {
             EmbeddedTerminalView(
                 executable: CLIRunner.containerBinary,
-                arguments: ["machine", "run", "--name", machine.id]
+                arguments: ["machine", "run", "--name", machine.id],
+                workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path
             ) { _ in
                 terminalExited = true
             }

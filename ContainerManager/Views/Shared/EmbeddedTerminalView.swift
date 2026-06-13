@@ -15,6 +15,11 @@ struct EmbeddedTerminalView: NSViewRepresentable {
     let executable: String
     /// Arguments, e.g. ["machine", "run", "--name", "dev"].
     let arguments: [String]
+    /// Working directory for the spawned process. For `container machine run` this
+    /// should be the macOS home directory so the machine maps it to the shared
+    /// `/Users/<user>` (matching Terminal.app); otherwise the machine falls back
+    /// to its own `/home/<user>`.
+    var workingDirectory: String? = nil
     /// Called when the spawned process exits, with its exit code.
     var onTerminated: (Int32?) -> Void = { _ in }
 
@@ -37,7 +42,8 @@ struct EmbeddedTerminalView: NSViewRepresentable {
         view.startProcess(
             executable: executable,
             args: arguments,
-            environment: environmentList
+            environment: environmentList,
+            currentDirectory: workingDirectory
         )
         return view
     }
