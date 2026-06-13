@@ -15,6 +15,18 @@ Every container in a stack is tagged with a label (`com.containermanager.stack=m
 
 ## Templates
 
+ContainerManager ships these ready-made templates (New Stack ▸):
+
+- **WordPress + MariaDB** — a blog/CMS backed by a database (below).
+- **PostgreSQL** — a standalone Postgres database on a volume, published for your app to connect to.
+- **PostgreSQL + Adminer** — Postgres plus Adminer, a web UI to browse/query it.
+- **Mailpit** — a local SMTP server with a web inbox for testing outbound email.
+- **Gitea** — a self-hosted Git server (single container on SQLite) with a web UI and git-over-SSH.
+- **code-server** — VS Code in the browser with a persistent workspace volume.
+- **Nginx + host folder** — serve a folder from your Mac as a static site (edit on the host, refresh the browser).
+
+Anything not covered by a template can be assembled with **Custom Stack**.
+
 ### WordPress + MariaDB
 
 A ready-to-use blog/CMS stack. Fields:

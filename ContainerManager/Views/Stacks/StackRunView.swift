@@ -12,6 +12,7 @@ struct StackRunView: View {
     let log: [String]
     let progress: GuiProgress
     let isRunning: Bool
+    var finished: Bool = false
     let resultURL: URL?
 
     var body: some View {
@@ -56,6 +57,12 @@ struct StackRunView: View {
                         .font(.callout)
                     Button("Open") { NSWorkspace.shared.open(resultURL) }
                         .controlSize(.small)
+                }
+            } else if finished {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text("Stack is up.")
+                        .font(.callout)
                 }
             }
         }

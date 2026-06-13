@@ -44,8 +44,10 @@ struct StacksListView: View {
         }
         .sheet(item: $presentedSheet) { kind in
             switch kind {
-            case .wordpress:
-                WordPressStackSheet()
+            case .template(let id):
+                if let template = StackTemplates.all.first(where: { $0.id == id }) {
+                    TemplateStackSheet(template: template)
+                }
             case .custom:
                 CustomStackSheet()
             }
@@ -61,10 +63,12 @@ struct StacksListView: View {
 
     @ViewBuilder
     private var createMenu: some View {
-        Button {
-            presentedSheet = .wordpress
-        } label: {
-            Label("WordPress + MariaDB", systemImage: "globe")
+        ForEach(StackTemplates.all) { template in
+            Button {
+                presentedSheet = .template(template.id)
+            } label: {
+                Label(template.name, systemImage: template.systemImage)
+            }
         }
         Divider()
         Button {
@@ -75,10 +79,15 @@ struct StacksListView: View {
     }
 }
 
-enum StackCreateKind: String, Identifiable {
-    case wordpress
+enum StackCreateKind: Identifiable {
+    case template(String)
     case custom
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .template(let id): id
+        case .custom: "custom"
+        }
+    }
 }
 
 struct StackRow: View {

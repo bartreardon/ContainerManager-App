@@ -27,6 +27,7 @@ struct CustomStackSheet: View {
     @State private var progress = GuiProgress()
     @State private var log: [String] = []
     @State private var isRunning = false
+    @State private var finished = false
     @State private var resultURL: URL?
     @State private var error: PresentedError?
 
@@ -69,9 +70,9 @@ struct CustomStackSheet: View {
                         Text(error.message).foregroundStyle(.red).font(.callout)
                     }
                 }
-                if isRunning || resultURL != nil || !log.isEmpty {
+                if isRunning || finished || !log.isEmpty {
                     Section {
-                        StackRunView(log: log, progress: progress, isRunning: isRunning, resultURL: resultURL)
+                        StackRunView(log: log, progress: progress, isRunning: isRunning, finished: finished, resultURL: resultURL)
                     }
                 }
             }
@@ -82,8 +83,8 @@ struct CustomStackSheet: View {
 
             HStack {
                 Spacer()
-                Button(resultURL == nil ? "Cancel" : "Done") { dismiss() }
-                if resultURL == nil {
+                Button(finished ? "Done" : "Cancel") { dismiss() }
+                if !finished {
                     Button("Create") { Task { await run() } }
                         .buttonStyle(.borderedProminent)
                         .disabled(isRunning || !isValid)
@@ -155,6 +156,7 @@ struct CustomStackSheet: View {
             resultURL = try await StackOrchestrator.run(spec: spec, progress: progress) { line in
                 log.append(line)
             }
+            finished = true
             await store.refresh()
         } catch {
             self.error = PresentedError(title: "Failed to create stack", error: error)
