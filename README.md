@@ -7,7 +7,7 @@ ContainerManager is a SwiftUI front-end that links `container`'s own Swift clien
 ## Features
 
 - **Stacks** - collection of containers and configuration managed as one unit - WordPress + MariaDB template or custom stack builder (pick any web image and optionally a database image) 
-- **Machines** — create persistent Linux VMs from an OCI image, start/stop, set default, edit boot config (CPUs, memory, home-mount), view logs, and open a shell. Each machine has an **integrated terminal** (a Terminal tab in its detail view) for an interactive session without leaving the app, plus an "Open in Terminal" option for Terminal.app. Surfaces boot diagnostics when an image lacks an init system. New to machines? See [what a container machine is and when to use it](docs/container-machine.md).
+- **Machines** — create persistent Linux VMs from an OCI image, start/stop, set default, edit boot config (CPUs, memory, home-mount), view logs, and open a shell. Each machine has an **integrated terminal** (a Terminal tab in its detail view) for an interactive session without leaving the app, plus an "Open in Terminal" option for Terminal.app. Surfaces boot diagnostics when an image lacks an init system. New to machines? See [what a container machine is and when to use it](container-machine.md).
 - **Containers** — create and run containers (image, command, env, CPUs/memory, network, published ports, volume/bind mounts), start/stop/kill/delete, and view logs.
 - **Images** — list local images, pull from a registry with progress, and delete.
 - **Networks** — create (NAT or host-only, optional CIDR), inspect subnet/gateway, and delete. The built-in `default` network is protected.
