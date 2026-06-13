@@ -9,6 +9,11 @@ import MachineAPIClient
 import SwiftUI
 import struct ContainerizationOCI.Platform
 
+private enum MachineDetailMode: String, CaseIterable {
+    case info = "Details"
+    case terminal = "Terminal"
+}
+
 struct MachineDetailView: View {
     let machineId: String?
     @Environment(MachinesStore.self) private var store
@@ -16,6 +21,7 @@ struct MachineDetailView: View {
     var body: some View {
         if let machineId, let machine = store.machine(withId: machineId) {
             MachineDetailContent(machine: machine)
+                .id(machine.id)
         } else {
             ContentUnavailableView("Select a Machine", systemImage: "desktopcomputer")
         }
@@ -25,6 +31,9 @@ struct MachineDetailView: View {
 private struct MachineDetailContent: View {
     let machine: MachineSnapshot
     @Environment(MachinesStore.self) private var store
+    @State private var mode: MachineDetailMode = .info
+    @State private var terminalSessionId = UUID()
+    @State private var terminalExited = false
     @State private var showDeleteConfirmation = false
     @State private var showLogs = false
     @State private var shellError: PresentedError?
@@ -35,6 +44,86 @@ private struct MachineDetailContent: View {
     }
 
     var body: some View {
+        Group {
+            switch mode {
+            case .info: infoForm
+            case .terminal: terminalPane
+            }
+        }
+        .navigationTitle(machine.id)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("View", selection: $mode) {
+                    ForEach(MachineDetailMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+            machineActions
+        }
+        .onChange(of: mode) {
+            if mode == .terminal {
+                terminalExited = false
+                terminalSessionId = UUID()
+            }
+        }
+        .confirmationDialog(
+            "Delete the machine “\(machine.id)”?",
+            isPresented: $showDeleteConfirmation
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { await store.delete(id: machine.id) }
+            }
+        } message: {
+            Text("The machine will be stopped and its disk contents permanently removed.")
+        }
+        .sheet(isPresented: $showLogs) {
+            LogsSheet(title: "\(machine.id) Logs", hasBootLog: true) {
+                try await MachineClient().logs(id: machine.id)
+            }
+        }
+        .errorAlert($shellError)
+        .alert("Terminal Automation Needed", isPresented: $showAutomationHelp) {
+            Button("Open System Settings") {
+                TerminalLauncher.openAutomationSettings()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("ContainerManager needs permission to control Terminal to open a shell. Enable ContainerManager under Automation in Privacy & Security settings, then try again.")
+        }
+    }
+
+    private var terminalPane: some View {
+        VStack(spacing: 0) {
+            EmbeddedTerminalView(
+                executable: CLIRunner.containerBinary,
+                arguments: ["machine", "run", "--name", machine.id]
+            ) { _ in
+                terminalExited = true
+            }
+            .id(terminalSessionId)
+            if terminalExited {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.secondary)
+                    Text("Session ended. The machine keeps running.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Reconnect") {
+                        terminalExited = false
+                        terminalSessionId = UUID()
+                    }
+                }
+                .padding(8)
+                .background(.bar)
+            }
+        }
+    }
+
+    private var infoForm: some View {
         Form {
             Section("Status") {
                 LabeledContent("Status") {
@@ -72,75 +161,52 @@ private struct MachineDetailContent: View {
             BootConfigSection(machine: machine)
         }
         .formStyle(.grouped)
-        .navigationTitle(machine.id)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                if machine.status == .running {
-                    Button {
-                        Task { await store.stop(id: machine.id) }
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .help("Stop this machine")
-                    .disabled(isBusy)
-                } else {
-                    Button {
-                        Task { await store.boot(id: machine.id) }
-                    } label: {
-                        Label("Start", systemImage: "play.fill")
-                    }
-                    .help("Start this machine")
-                    .disabled(isBusy || machine.status == .stopping)
-                }
+    }
+
+    @ToolbarContentBuilder
+    private var machineActions: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            if machine.status == .running {
                 Button {
-                    Task { await openShell() }
+                    Task { await store.stop(id: machine.id) }
                 } label: {
-                    Label("Open Shell", systemImage: "terminal")
+                    Label("Stop", systemImage: "stop.fill")
                 }
-                .help("Open an interactive shell in Terminal")
+                .help("Stop this machine")
+                .disabled(isBusy)
+            } else {
                 Button {
-                    showLogs = true
+                    Task { await store.boot(id: machine.id) }
                 } label: {
-                    Label("Logs", systemImage: "text.alignleft")
+                    Label("Start", systemImage: "play.fill")
                 }
-                .help("View machine logs")
-                Menu {
-                    Button("Set as Default") {
-                        Task { await store.setDefault(id: machine.id) }
-                    }
-                    .disabled(store.defaultId == machine.id)
-                    Divider()
-                    Button("Delete…", role: .destructive) {
-                        showDeleteConfirmation = true
-                    }
-                } label: {
-                    Label("More", systemImage: "ellipsis.circle")
+                .help("Start this machine")
+                .disabled(isBusy || machine.status == .stopping)
+            }
+            Button {
+                Task { await openShell() }
+            } label: {
+                Label("Open in Terminal", systemImage: "macwindow")
+            }
+            .help("Open an interactive shell in Terminal.app")
+            Button {
+                showLogs = true
+            } label: {
+                Label("Logs", systemImage: "text.alignleft")
+            }
+            .help("View machine logs")
+            Menu {
+                Button("Set as Default") {
+                    Task { await store.setDefault(id: machine.id) }
                 }
+                .disabled(store.defaultId == machine.id)
+                Divider()
+                Button("Delete…", role: .destructive) {
+                    showDeleteConfirmation = true
+                }
+            } label: {
+                Label("More", systemImage: "ellipsis.circle")
             }
-        }
-        .confirmationDialog(
-            "Delete the machine “\(machine.id)”?",
-            isPresented: $showDeleteConfirmation
-        ) {
-            Button("Delete", role: .destructive) {
-                Task { await store.delete(id: machine.id) }
-            }
-        } message: {
-            Text("The machine will be stopped and its disk contents permanently removed.")
-        }
-        .sheet(isPresented: $showLogs) {
-            LogsSheet(title: "\(machine.id) Logs", hasBootLog: true) {
-                try await MachineClient().logs(id: machine.id)
-            }
-        }
-        .errorAlert($shellError)
-        .alert("Terminal Automation Needed", isPresented: $showAutomationHelp) {
-            Button("Open System Settings") {
-                TerminalLauncher.openAutomationSettings()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("ContainerManager needs permission to control Terminal to open a shell. Enable ContainerManager under Automation in Privacy & Security settings, then try again.")
         }
     }
 

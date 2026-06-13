@@ -13,6 +13,7 @@
 		AC0000000000000000000004 /* ContainerPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000104 /* ContainerPersistence */; };
 		AC0000000000000000000005 /* ContainerPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000105 /* ContainerPlugin */; };
 		AC0000000000000000000006 /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000106 /* TerminalProgress */; };
+		AC0000000000000000000007 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000107 /* SwiftTerm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +39,7 @@
 				AC0000000000000000000004 /* ContainerPersistence in Frameworks */,
 				AC0000000000000000000005 /* ContainerPlugin in Frameworks */,
 				AC0000000000000000000006 /* TerminalProgress in Frameworks */,
+				AC0000000000000000000007 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,6 +88,7 @@
 				AC0000000000000000000104 /* ContainerPersistence */,
 				AC0000000000000000000105 /* ContainerPlugin */,
 				AC0000000000000000000106 /* TerminalProgress */,
+				AC0000000000000000000107 /* SwiftTerm */,
 			);
 			productName = ContainerManager;
 			productReference = CCCB1D172FDC34A50080B7ED /* ContainerManager.app */;
@@ -117,6 +120,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AC0000000000000000000201 /* XCLocalSwiftPackageReference "../../container" */,
+				AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CCCB1D182FDC34A50080B7ED /* Products */;
@@ -367,6 +371,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.13.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		AC0000000000000000000101 /* MachineAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -391,6 +406,11 @@
 		AC0000000000000000000106 /* TerminalProgress */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TerminalProgress;
+		};
+		AC0000000000000000000107 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
