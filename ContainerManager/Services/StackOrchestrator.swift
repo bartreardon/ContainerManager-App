@@ -13,19 +13,19 @@ import Foundation
 enum StackOrchestrator {
     /// Runs the plan. `onStep` reports high-level progress lines; `progress` carries
     /// image fetch/unpack progress. Returns the web URL if the stack exposes one.
-    @discardableResult
+    @MainActor @discardableResult
     static func run(
         spec: StackSpec,
         progress: GuiProgress,
         onStep: @escaping @MainActor (String) -> Void
     ) async throws -> URL? {
-        await onStep("Creating network “\(spec.networkName)”…")
+        onStep("Creating network “\(spec.networkName)”…")
         try await ensureNetwork(named: spec.networkName)
 
         var ips: [String: String] = [:]
         for service in spec.services {
             let containerName = "\(spec.name)-\(service.key)"
-            await onStep("Starting \(service.displayName) (\(containerName))…")
+            onStep("Starting \(service.displayName) (\(containerName))…")
 
             let env = service.env.map { resolve($0, ips: ips) }
 
@@ -60,7 +60,7 @@ enum StackOrchestrator {
             }
         }
 
-        await onStep("Stack “\(spec.name)” is up.")
+        onStep("Stack “\(spec.name)” is up.")
         if let port = spec.webPort, spec.webServiceKey != nil {
             return URL(string: "http://localhost:\(port)")
         }

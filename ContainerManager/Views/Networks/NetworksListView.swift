@@ -79,7 +79,7 @@ struct NetworkRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(network.status.ipv4Subnet)")
+            Text(verbatim: "\(network.status.ipv4Subnet)")
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
         }
