@@ -13,15 +13,15 @@ struct CLIResult {
 /// Runs the installed `container` CLI for the few operations that aren't practical
 /// to perform in-process (registering and deregistering the launchd services).
 enum CLIRunner {
-    /// Path to the container CLI. Defaults to the standard install location; a dev
-    /// build can be used instead via:
+    /// Path to the container CLI; see CLIPathResolver for the resolution order.
+    /// A dev build can be forced via:
     ///   defaults write com.bartreardon.ContainerManager containerBinaryPath <path>
     static var containerBinary: String {
-        UserDefaults.standard.string(forKey: "containerBinaryPath") ?? "/usr/local/bin/container"
+        CLIPathResolver.effectivePath ?? CLIPathResolver.standardPath
     }
 
     static var isInstalled: Bool {
-        FileManager.default.isExecutableFile(atPath: containerBinary)
+        CLIPathResolver.effectivePath != nil
     }
 
     @discardableResult

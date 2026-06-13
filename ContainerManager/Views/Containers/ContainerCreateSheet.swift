@@ -1,0 +1,138 @@
+//
+//  ContainerCreateSheet.swift
+//  ContainerManager
+//
+
+import SwiftUI
+
+struct ContainerCreateSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ContainersStore.self) private var store
+
+    @State private var name = ""
+    @State private var image = ""
+    @State private var command = ""
+    @State private var envText = ""
+    @State private var cpusText = ""
+    @State private var memory = ""
+    @State private var portsText = ""
+    @State private var autoRemove = false
+    @State private var startAfterCreate = true
+
+    @State private var progress = GuiProgress()
+    @State private var isCreating = false
+    @State private var error: PresentedError?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                Section("Container") {
+                    TextField("Name", text: $name, prompt: Text("Random ID"))
+                    ImageReferencePicker(label: "Image", reference: $image, prompt: "e.g. nginx:latest")
+                    TextField("Command", text: $command, prompt: Text("Image default"))
+                }
+                Section {
+                    TextEditor(text: $envText)
+                        .font(.body.monospaced())
+                        .frame(height: 56)
+                } header: {
+                    Text("Environment")
+                } footer: {
+                    Text("One KEY=VALUE per line.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Resources") {
+                    TextField("CPUs", text: $cpusText, prompt: Text("Default"))
+                    TextField("Memory", text: $memory, prompt: Text("Default — e.g. 1G"))
+                }
+                Section {
+                    TextField("Published ports", text: $portsText, prompt: Text("e.g. 8080:80 8443:443/tcp"))
+                } footer: {
+                    Text("host-port:container-port[/protocol], separated by spaces or commas. The container joins the default network.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section {
+                    Toggle("Remove after exit", isOn: $autoRemove)
+                    Toggle("Start after create", isOn: $startAfterCreate)
+                }
+                if let error {
+                    Section {
+                        Text(error.message)
+                            .foregroundStyle(.red)
+                            .font(.callout)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .disabled(isCreating)
+
+            Divider()
+
+            HStack(spacing: 12) {
+                if isCreating {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(progress.phase.isEmpty ? "Preparing…" : progress.phase)
+                            .font(.caption)
+                        if let fraction = progress.fraction {
+                            ProgressView(value: fraction)
+                        } else {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(progress.detail)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: 240, alignment: .leading)
+                }
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                Button("Create") {
+                    Task { await create() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isCreating || image.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(14)
+        }
+        .frame(width: 500)
+    }
+
+    private func create() async {
+        isCreating = true
+        error = nil
+
+        let env = envText
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let ports = portsText
+            .split(whereSeparator: { $0 == "," || $0.isWhitespace })
+            .map(String.init)
+
+        let spec = ContainerCreateSpec(
+            name: name.trimmingCharacters(in: .whitespaces),
+            image: image.trimmingCharacters(in: .whitespaces),
+            command: command,
+            env: env,
+            cpus: Int64(cpusText.trimmingCharacters(in: .whitespaces)),
+            memory: memory.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil
+                : memory.trimmingCharacters(in: .whitespaces),
+            publishPorts: ports,
+            autoRemove: autoRemove,
+            startAfterCreate: startAfterCreate
+        )
+        do {
+            try await store.create(spec: spec, progress: progress)
+            dismiss()
+        } catch {
+            self.error = PresentedError(title: "Failed to create container", error: error)
+        }
+        isCreating = false
+    }
+}

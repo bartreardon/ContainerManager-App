@@ -23,15 +23,19 @@ struct PresentedError: Identifiable {
         self.message = Self.describe(error)
     }
 
-    private static func describe(_ error: any Error) -> String {
-        guard let containerError = error as? ContainerizationError else {
-            return String(describing: error)
+    /// Extracts the most readable message an error has to offer.
+    static func describe(_ error: any Error) -> String {
+        if let containerError = error as? ContainerizationError {
+            // The client wraps the underlying failure, which carries the useful message.
+            if let cause = containerError.cause as? ContainerizationError {
+                return "\(containerError.message): \(cause.message)"
+            }
+            return containerError.message
         }
-        // The client wraps the underlying failure, which carries the useful message.
-        if let cause = containerError.cause as? ContainerizationError {
-            return "\(containerError.message): \(cause.message)"
+        if let localized = (error as? LocalizedError)?.errorDescription {
+            return localized
         }
-        return containerError.message
+        return String(describing: error)
     }
 }
 

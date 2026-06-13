@@ -25,13 +25,25 @@ struct MachineCreateSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section("Machine") {
+                Section {
                     TextField(
                         "Name",
                         text: $name,
                         prompt: Text(MachinesStore.derivedName(fromImage: image))
                     )
-                    TextField("Image", text: $image, prompt: Text("alpine:3.22"))
+                    ImageReferencePicker(label: "Image", reference: $image, prompt: "alpine:3.22")
+                } header: {
+                    Text("Machine")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Machine images must include an init system at /sbin/init. alpine works out of the box; plain ubuntu/debian images do not.")
+                        Link(
+                            "Learn about machine images",
+                            destination: URL(string: "https://github.com/apple/container/blob/main/docs/container-machine.md")!
+                        )
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Section("Resources") {
                     Stepper(value: $cpus, in: 1...64) {

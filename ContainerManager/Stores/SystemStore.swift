@@ -25,27 +25,26 @@ final class SystemStore {
         if status == .starting || status == .stopping {
             return
         }
-        guard CLIRunner.isInstalled else {
-            status = .notInstalled
-            health = nil
-            return
-        }
+        // Check for a live daemon before requiring a CLI: a daemon installed in a
+        // non-standard location is still fully manageable, and a successful ping
+        // teaches us where its CLI lives.
         let label = Self.apiServerLabel
         let registered = await Task.detached {
             (try? ServiceManager.isRegistered(fullServiceLabel: label)) ?? false
         }.value
-        guard registered else {
-            status = .stopped
-            health = nil
-            return
+        if registered {
+            do {
+                let health = try await ClientHealthCheck.ping(timeout: .seconds(3))
+                CLIPathResolver.observe(health: health)
+                self.health = health
+                status = .running
+                return
+            } catch {
+                // Registered but unresponsive — treat as stopped below.
+            }
         }
-        do {
-            health = try await ClientHealthCheck.ping(timeout: .seconds(3))
-            status = .running
-        } catch {
-            status = .stopped
-            health = nil
-        }
+        health = nil
+        status = CLIRunner.isInstalled ? .stopped : .notInstalled
     }
 
     func start() async {

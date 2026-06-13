@@ -9,6 +9,7 @@ import SwiftUI
 struct ContainersListView: View {
     @Binding var selection: String?
     @Environment(ContainersStore.self) private var store
+    @State private var showCreateSheet = false
 
     var body: some View {
         @Bindable var store = store
@@ -23,11 +24,26 @@ struct ContainersListView: View {
                 ContentUnavailableView {
                     Label("No Containers", systemImage: "shippingbox")
                 } description: {
-                    Text("Containers started with the container CLI will appear here.")
+                    Text("Create a container from an image, or start one with the container CLI.")
+                } actions: {
+                    Button("New Container…") { showCreateSheet = true }
                 }
             }
         }
         .navigationTitle("Containers")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showCreateSheet = true
+                } label: {
+                    Label("New Container", systemImage: "plus")
+                }
+                .help("Create a new container")
+            }
+        }
+        .sheet(isPresented: $showCreateSheet) {
+            ContainerCreateSheet()
+        }
         .errorAlert($store.lastError)
         .task {
             while !Task.isCancelled {

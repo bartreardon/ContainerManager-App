@@ -75,6 +75,14 @@ private struct ContainerDetailContent: View {
                     }
                     .help("Stop this container")
                     .disabled(isBusy)
+                } else {
+                    Button {
+                        Task { await store.start(id: container.id) }
+                    } label: {
+                        Label("Start", systemImage: "play.fill")
+                    }
+                    .help("Start this container")
+                    .disabled(isBusy || container.status == .stopping)
                 }
                 Button {
                     showLogs = true
