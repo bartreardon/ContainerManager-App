@@ -4,56 +4,142 @@
 //
 
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerPlugin
 import Foundation
 import Observation
+import struct Containerization.SystemPlatform
 
-/// Tracks whether the `container` system services are installed and running,
-/// and starts/stops them via the CLI. All other stores are gated on this one.
+/// Tracks whether the `container` system services are installed, up to date, running,
+/// and provisioned with a base Linux environment. All other stores gate on this.
 @Observable
 final class SystemStore {
     static let apiServerLabel = "com.apple.container.apiserver"
 
     private(set) var status: DaemonStatus = .unknown
     private(set) var health: SystemHealth?
+    /// Streamed output from `system start` / repair.
     private(set) var actionOutput: [String] = []
+    /// Short progress message during install.
+    private(set) var busyMessage: String?
     var lastError: PresentedError?
 
-    var isRunning: Bool { status == .running }
+    private var cachedCLIVersion: String?
+
+    /// Fully ready to manage containers (running + base environment present).
+    var isReady: Bool { status == .running }
+
+    var isOutdated: Bool {
+        if case .outdated = status { return true }
+        return false
+    }
 
     func refresh() async {
-        if status == .starting || status == .stopping {
+        switch status {
+        case .starting, .stopping, .installing: return
+        default: break
+        }
+
+        guard CLIRunner.isInstalled else {
+            status = .notInstalled
+            health = nil
             return
         }
-        // Check for a live daemon before requiring a CLI: a daemon installed in a
-        // non-standard location is still fully manageable, and a successful ping
-        // teaches us where its CLI lives.
+
         let label = Self.apiServerLabel
         let registered = await Task.detached {
             (try? ServiceManager.isRegistered(fullServiceLabel: label)) ?? false
         }.value
-        if registered {
-            do {
-                let health = try await ClientHealthCheck.ping(timeout: .seconds(3))
-                CLIPathResolver.observe(health: health)
-                self.health = health
-                status = .running
+
+        if registered, let health = try? await ClientHealthCheck.ping(timeout: .seconds(3)) {
+            CLIPathResolver.observe(health: health)
+            self.health = health
+            guard ContainerVersion.meetsMinimum(health.apiServerVersion) else {
+                status = .outdated(displayVersion(health.apiServerVersion))
                 return
-            } catch {
-                // Registered but unresponsive — treat as stopped below.
             }
+            status = await baseEnvironmentReady() ? .running : .baseEnvMissing
+            return
         }
+
         health = nil
-        status = CLIRunner.isInstalled ? .stopped : .notInstalled
+        if let version = await cliVersion(), !ContainerVersion.meetsMinimum(version) {
+            status = .outdated(displayVersion(version))
+            return
+        }
+        status = .stopped
     }
+
+    // MARK: Actions
 
     func start() async {
         guard status == .stopped || status == .unknown else { return }
+        await performStart(stopFirst: false)
+    }
+
+    /// Re-runs `system start` (after a stop) to install a missing kernel / base filesystem.
+    func repair() async {
+        guard status == .baseEnvMissing else { return }
+        await performStart(stopFirst: true)
+    }
+
+    func stop() async {
+        guard status == .running || status == .baseEnvMissing else { return }
+        status = .stopping
+        do {
+            let result = try await CLIRunner.run(["system", "stop"])
+            if result.exitCode != 0 {
+                lastError = PresentedError(title: "Failed to stop container services", message: result.output)
+            }
+        } catch {
+            lastError = PresentedError(title: "Failed to stop container services", error: error)
+        }
+        status = .unknown
+        health = nil
+        await refresh()
+    }
+
+    /// Downloads and launches the official installer, then waits for the CLI to appear.
+    func install() async {
+        guard status == .notInstalled || isOutdated else { return }
+        status = .installing
+        actionOutput = []
+        busyMessage = "Finding the latest release…"
+        do {
+            let release = try await ContainerInstaller.latestRelease()
+            busyMessage = "Downloading container \(release.version)…"
+            let pkg = try await ContainerInstaller.download(release)
+            busyMessage = "Opening the installer — complete it in the Installer window."
+            ContainerInstaller.launchInstaller(pkg: pkg)
+
+            // Wait (bounded) for the user to finish in Installer.app.
+            cachedCLIVersion = nil
+            for _ in 0..<120 {
+                try? await Task.sleep(for: .seconds(3))
+                cachedCLIVersion = nil
+                if CLIRunner.isInstalled, let v = await cliVersion(), ContainerVersion.meetsMinimum(v) {
+                    break
+                }
+            }
+        } catch {
+            lastError = PresentedError(title: "Installation failed", error: error)
+        }
+        busyMessage = nil
+        status = .unknown
+        await refresh()
+    }
+
+    // MARK: Helpers
+
+    private func performStart(stopFirst: Bool) async {
         status = .starting
         actionOutput = []
         do {
+            if stopFirst {
+                _ = try? await CLIRunner.run(["system", "stop"])
+            }
             // --enable-kernel-install answers the CLI's interactive kernel prompt.
-            // The first start downloads a kernel and init filesystem; no timeout here.
+            // The first start downloads a kernel and base filesystem; no timeout here.
             let result = try await CLIRunner.run(["system", "start", "--enable-kernel-install"]) { [weak self] line in
                 self?.actionOutput.append(line)
             }
@@ -67,19 +153,31 @@ final class SystemStore {
         await refresh()
     }
 
-    func stop() async {
-        guard status == .running else { return }
-        status = .stopping
+    /// The base Linux environment is ready when a default kernel and the init
+    /// filesystem image are both installed.
+    private func baseEnvironmentReady() async -> Bool {
         do {
-            let result = try await CLIRunner.run(["system", "stop"])
-            if result.exitCode != 0 {
-                lastError = PresentedError(title: "Failed to stop container services", message: result.output)
-            }
+            let config = try await ConfigurationLoader.load()
+            _ = try await ClientKernel.getDefaultKernel(for: SystemPlatform.current)
+            _ = try await ClientImage.get(reference: config.vminit.image, containerSystemConfig: config)
+            return true
         } catch {
-            lastError = PresentedError(title: "Failed to stop container services", error: error)
+            return false
         }
-        status = .unknown
-        health = nil
-        await refresh()
+    }
+
+    private func cliVersion() async -> String? {
+        if let cachedCLIVersion { return cachedCLIVersion }
+        guard CLIRunner.isInstalled else { return nil }
+        let output = try? await CLIRunner.run(["--version"]).output
+        cachedCLIVersion = output?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cachedCLIVersion
+    }
+
+    private func displayVersion(_ raw: String) -> String {
+        if let v = ContainerVersion.parse(raw) {
+            return "\(v.0).\(v.1).\(v.2)"
+        }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

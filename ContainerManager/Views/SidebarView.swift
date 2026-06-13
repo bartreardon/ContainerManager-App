@@ -42,7 +42,7 @@ struct SystemStatusFooter: View {
             }
             Spacer()
             switch systemStore.status {
-            case .running:
+            case .running, .baseEnvMissing:
                 Button("Stop") {
                     Task { await systemStore.stop() }
                 }
@@ -53,10 +53,10 @@ struct SystemStatusFooter: View {
                 }
                 .controlSize(.small)
                 .disabled(systemStore.status == .unknown)
-            case .starting, .stopping:
+            case .starting, .stopping, .installing:
                 ProgressView()
                     .controlSize(.small)
-            case .notInstalled:
+            case .notInstalled, .outdated:
                 EmptyView()
             }
         }
@@ -66,9 +66,9 @@ struct SystemStatusFooter: View {
     private var statusColor: Color {
         switch systemStore.status {
         case .running: .green
-        case .starting, .stopping: .orange
-        case .stopped, .notInstalled: .secondary.opacity(0.5)
-        case .unknown: .secondary.opacity(0.5)
+        case .starting, .stopping, .installing: .orange
+        case .outdated, .baseEnvMissing: .yellow
+        case .stopped, .notInstalled, .unknown: .secondary.opacity(0.5)
         }
     }
 
@@ -77,8 +77,11 @@ struct SystemStatusFooter: View {
         case .running: "Running"
         case .starting: "Starting…"
         case .stopping: "Stopping…"
+        case .installing: "Installing…"
         case .stopped: "Stopped"
         case .notInstalled: "Not installed"
+        case .outdated: "Update required"
+        case .baseEnvMissing: "Setup incomplete"
         case .unknown: "Checking…"
         }
     }

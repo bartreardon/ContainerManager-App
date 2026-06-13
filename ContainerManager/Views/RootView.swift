@@ -22,7 +22,7 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } content: {
             Group {
-                if systemStore.isRunning {
+                if systemStore.isReady {
                     switch section {
                     case .stacks:
                         StacksListView(selection: $selectedStackName)
@@ -43,7 +43,7 @@ struct RootView: View {
             }
             .navigationSplitViewColumnWidth(min: 280, ideal: 340)
         } detail: {
-            if systemStore.isRunning {
+            if systemStore.isReady {
                 switch section {
                 case .stacks:
                     StackDetailView(stackName: selectedStackName)
@@ -67,7 +67,7 @@ struct RootView: View {
         .task {
             while !Task.isCancelled {
                 await systemStore.refresh()
-                let interval: Duration = systemStore.isRunning ? .seconds(15) : .seconds(5)
+                let interval: Duration = systemStore.isReady ? .seconds(15) : .seconds(5)
                 try? await Task.sleep(for: interval)
             }
         }
