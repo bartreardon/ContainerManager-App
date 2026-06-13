@@ -13,6 +13,9 @@ struct ContainerManagerApp: App {
     @State private var machinesStore = MachinesStore()
     @State private var containersStore = ContainersStore()
     @State private var imagesStore = ImagesStore()
+    @State private var networksStore = NetworksStore()
+    @State private var volumesStore = VolumesStore()
+    @State private var stacksStore = StacksStore()
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +24,9 @@ struct ContainerManagerApp: App {
                 .environment(machinesStore)
                 .environment(containersStore)
                 .environment(imagesStore)
+                .environment(networksStore)
+                .environment(volumesStore)
+                .environment(stacksStore)
         }
     }
 }

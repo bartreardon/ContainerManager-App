@@ -11,6 +11,9 @@ struct RootView: View {
     @State private var selectedMachineId: String?
     @State private var selectedContainerId: String?
     @State private var selectedImageReference: String?
+    @State private var selectedNetworkId: String?
+    @State private var selectedVolumeName: String?
+    @State private var selectedStackName: String?
 
     var body: some View {
         @Bindable var systemStore = systemStore
@@ -21,12 +24,18 @@ struct RootView: View {
             Group {
                 if systemStore.isRunning {
                     switch section {
+                    case .stacks:
+                        StacksListView(selection: $selectedStackName)
                     case .machines:
                         MachinesListView(selection: $selectedMachineId)
                     case .containers:
                         ContainersListView(selection: $selectedContainerId)
                     case .images:
                         ImagesListView(selection: $selectedImageReference)
+                    case .networks:
+                        NetworksListView(selection: $selectedNetworkId)
+                    case .volumes:
+                        VolumesListView(selection: $selectedVolumeName)
                     }
                 } else {
                     DaemonGateView()
@@ -36,12 +45,18 @@ struct RootView: View {
         } detail: {
             if systemStore.isRunning {
                 switch section {
+                case .stacks:
+                    StackDetailView(stackName: selectedStackName)
                 case .machines:
                     MachineDetailView(machineId: selectedMachineId)
                 case .containers:
                     ContainerDetailView(containerId: selectedContainerId)
                 case .images:
                     ImageDetailView(reference: selectedImageReference)
+                case .networks:
+                    NetworkDetailView(networkId: selectedNetworkId)
+                case .volumes:
+                    VolumeDetailView(volumeName: selectedVolumeName)
                 }
             } else {
                 Color.clear

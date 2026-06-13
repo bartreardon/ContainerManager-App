@@ -38,4 +38,13 @@ extension String {
     var withoutCIDRSuffix: String {
         split(separator: "/").first.map(String.init) ?? self
     }
+
+    /// Lowercases and replaces disallowed characters with hyphens so the result is a
+    /// valid network/volume/container resource name (lowercase letters, digits, hyphens).
+    var sanitizedResourceName: String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789-")
+        let mapped = String(lowercased().map { allowed.contains($0) ? $0 : "-" })
+        let trimmed = mapped.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return trimmed.isEmpty ? "stack" : trimmed
+    }
 }

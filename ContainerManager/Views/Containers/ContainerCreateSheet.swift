@@ -8,6 +8,8 @@ import SwiftUI
 struct ContainerCreateSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ContainersStore.self) private var store
+    @Environment(NetworksStore.self) private var networksStore
+    @Environment(VolumesStore.self) private var volumesStore
 
     @State private var name = ""
     @State private var image = ""
@@ -15,7 +17,9 @@ struct ContainerCreateSheet: View {
     @State private var envText = ""
     @State private var cpusText = ""
     @State private var memory = ""
+    @State private var network = "default"
     @State private var portsText = ""
+    @State private var volumesText = ""
     @State private var autoRemove = false
     @State private var startAfterCreate = true
 
@@ -46,10 +50,40 @@ struct ContainerCreateSheet: View {
                     TextField("CPUs", text: $cpusText, prompt: Text("Default"))
                     TextField("Memory", text: $memory, prompt: Text("Default — e.g. 1G"))
                 }
-                Section {
+                Section("Networking") {
+                    Picker("Network", selection: $network) {
+                        ForEach(networkOptions, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
                     TextField("Published ports", text: $portsText, prompt: Text("e.g. 8080:80 8443:443/tcp"))
+                }
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Volumes & mounts")
+                                .font(.callout)
+                            Spacer()
+                            if !volumesStore.selectableNames.isEmpty {
+                                Menu {
+                                    ForEach(volumesStore.selectableNames, id: \.self) { name in
+                                        Button(name) { insertVolume(name) }
+                                    }
+                                } label: {
+                                    Label("Add Volume", systemImage: "plus.circle")
+                                        .labelStyle(.iconOnly)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .help("Insert an existing volume")
+                            }
+                        }
+                        TextEditor(text: $volumesText)
+                            .font(.body.monospaced())
+                            .frame(height: 52)
+                    }
                 } footer: {
-                    Text("host-port:container-port[/protocol], separated by spaces or commas. The container joins the default network.")
+                    Text("One per line. `name:/path` mounts a named volume (created if needed, persists). `/host/path:/path[:ro]` bind-mounts a host folder.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -100,6 +134,25 @@ struct ContainerCreateSheet: View {
             .padding(14)
         }
         .frame(width: 500)
+        .task {
+            if networksStore.networks.isEmpty {
+                await networksStore.refresh()
+            }
+            if volumesStore.volumes.isEmpty {
+                await volumesStore.refresh()
+            }
+        }
+    }
+
+    /// Network names with the built-in "default" guaranteed present and first.
+    private var networkOptions: [String] {
+        let names = networksStore.selectableNames
+        return names.contains("default") ? names : ["default"] + names
+    }
+
+    private func insertVolume(_ name: String) {
+        let prefix = volumesText.isEmpty || volumesText.hasSuffix("\n") ? "" : "\n"
+        volumesText += "\(prefix)\(name):/"
     }
 
     private func create() async {
@@ -113,6 +166,10 @@ struct ContainerCreateSheet: View {
         let ports = portsText
             .split(whereSeparator: { $0 == "," || $0.isWhitespace })
             .map(String.init)
+        let volumes = volumesText
+            .split(whereSeparator: { $0 == "\n" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
 
         let spec = ContainerCreateSpec(
             name: name.trimmingCharacters(in: .whitespaces),
@@ -123,7 +180,9 @@ struct ContainerCreateSheet: View {
             memory: memory.trimmingCharacters(in: .whitespaces).isEmpty
                 ? nil
                 : memory.trimmingCharacters(in: .whitespaces),
+            network: network,
             publishPorts: ports,
+            volumes: volumes,
             autoRemove: autoRemove,
             startAfterCreate: startAfterCreate
         )
