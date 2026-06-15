@@ -1,5 +1,5 @@
 {
-  "originHash" : "551a7be5cb689a50607004630b4b09e606db0cbcf8267413fd02a173fca43120",
+  "originHash" : "27801f3f72a3f434a7d79e09932b0a56961a5975d6a1a72714588a01fa2fb09e",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -11,12 +11,21 @@
       }
     },
     {
+      "identity" : "container",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/container.git",
+      "state" : {
+        "revision" : "ee848e3ebfd7c73b04dd419683be54fb450b8779",
+        "version" : "1.0.0"
+      }
+    },
+    {
       "identity" : "containerization",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/containerization.git",
       "state" : {
-        "revision" : "9275f365dd555c8f072e7d250d809f5eb7bdd746",
-        "version" : "0.33.4"
+        "revision" : "a2a1add6c7e1a1665e5397edc49d925c49090b3a",
+        "version" : "0.33.3"
       }
     },
     {
@@ -267,8 +276,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
       "state" : {
-        "revision" : "e402d5fa38d1524896e7d913ce1320384e0bedf7",
-        "version" : "1.7.0"
+        "revision" : "7502b711c92a17741fa625d722b0ccbd595d8ed1",
+        "version" : "1.7.2"
       }
     },
     {

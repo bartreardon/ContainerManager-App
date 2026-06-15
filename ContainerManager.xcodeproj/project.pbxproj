@@ -119,7 +119,7 @@
 			mainGroup = CCCB1D0E2FDC34A50080B7ED;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				AC0000000000000000000201 /* XCLocalSwiftPackageReference "../../container" */,
+				AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */,
 				AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -296,7 +296,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManager;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -332,7 +333,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManager;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -368,14 +370,15 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		AC0000000000000000000201 /* XCLocalSwiftPackageReference "../../container" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../container;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
+		AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/container.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.0;
+			};
+		};
 		AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
@@ -389,26 +392,32 @@
 /* Begin XCSwiftPackageProductDependency section */
 		AC0000000000000000000101 /* MachineAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */;
 			productName = MachineAPIClient;
 		};
 		AC0000000000000000000102 /* ContainerAPIClient */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerAPIClient;
 		};
 		AC0000000000000000000103 /* ContainerResource */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerResource;
 		};
 		AC0000000000000000000104 /* ContainerPersistence */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerPersistence;
 		};
 		AC0000000000000000000105 /* ContainerPlugin */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerPlugin;
 		};
 		AC0000000000000000000106 /* TerminalProgress */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */;
 			productName = TerminalProgress;
 		};
 		AC0000000000000000000107 /* SwiftTerm */ = {

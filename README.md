@@ -29,7 +29,7 @@ ContainerManager is a SwiftUI front-end that links `container`'s own Swift clien
 This is a standard Xcode project; no extra tooling required.
 
 1. Open `ContainerManager.xcodeproj` in Xcode 26 or later.
-2. The app depends on the `container` Swift package via a **local package reference** at `../../container` (i.e. an `apple/container` checkout sibling to this project). Adjust the package reference if your checkout lives elsewhere. It also pulls [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (the integrated terminal) as a remote package. The first build resolves the full dependency graph (Containerization, NIO, SwiftTerm, etc.) and may take a few minutes.
+2. The app depends on Apple's [`container`](https://github.com/apple/container) Swift package, pinned to an **exact released version** (currently `1.0.0`) as a remote package reference. Pin it to the same version as the `container` CLI you run, so the app and the installed services agree on the base image/kernel references. It also pulls [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (the integrated terminal) as a remote package. Both are fetched automatically — no separate checkout or path setup is required. The first build resolves the full dependency graph (Containerization, NIO, SwiftTerm, etc.) and may take a few minutes.
 3. Build and run the **ContainerManager** scheme.
 
 > [!NOTE]

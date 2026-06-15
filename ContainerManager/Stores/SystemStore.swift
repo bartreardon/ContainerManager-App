@@ -153,13 +153,21 @@ final class SystemStore {
         await refresh()
     }
 
-    /// The base Linux environment is ready when a default kernel and the init
-    /// filesystem image are both installed.
+    /// The base Linux environment is ready when a default kernel is configured.
+    ///
+    /// We deliberately do *not* require the init-filesystem (`vminit`) image to be
+    /// present. The daemon fetches it on demand the first time a container or machine
+    /// is created (`ClientImage.fetch` in the create path), so a fresh, fully working
+    /// install legitimately has no `vminit` image yet. Gating on it produced a deadlock:
+    /// the UI hid the create actions behind a "Repair" wall, but the only thing that
+    /// pulls `vminit` is creating something — so the wall could never be cleared from
+    /// the app (only from the terminal). The kernel, by contrast, is a genuine
+    /// prerequisite — machine/container boot calls `getDefaultKernel` and fails without
+    /// one — and it's installed up front by `system start --enable-kernel-install`, so a
+    /// missing kernel is the real, Repair-able "base environment" problem.
     private func baseEnvironmentReady() async -> Bool {
         do {
-            let config = try await ConfigurationLoader.load()
             _ = try await ClientKernel.getDefaultKernel(for: SystemPlatform.current)
-            _ = try await ClientImage.get(reference: config.vminit.image, containerSystemConfig: config)
             return true
         } catch {
             return false
