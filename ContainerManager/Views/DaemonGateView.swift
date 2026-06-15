@@ -59,9 +59,9 @@ struct DaemonGateView: View {
 
         case .baseEnvMissing:
             ContentUnavailableView {
-                Label("Base Environment Missing", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                Label("Linux Kernel Not Installed", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
             } description: {
-                Text("The container services are running, but the Linux kernel and/or base filesystem aren't installed — containers can't be created until they are. This usually means an earlier download was interrupted.")
+                Text("The container services are running, but no default Linux kernel is configured — containers and machines can't boot without one. This usually means kernel installation was skipped or an earlier download was interrupted. Repair installs the recommended default kernel.")
             } actions: {
                 Button("Repair…") {
                     Task { await systemStore.repair() }
