@@ -10,6 +10,7 @@ struct ImagesListView: View {
     @Binding var selection: String?
     @Environment(ImagesStore.self) private var store
     @State private var showPullSheet = false
+    @State private var showBuildSheet = false
 
     var body: some View {
         @Bindable var store = store
@@ -24,14 +25,23 @@ struct ImagesListView: View {
                 ContentUnavailableView {
                     Label("No Images", systemImage: "opticaldiscdrive")
                 } description: {
-                    Text("Pull an image from a registry to use it for containers and machines.")
+                    Text("Pull an image from a registry, or build one from a Dockerfile, to use it for containers and machines.")
                 } actions: {
                     Button("Pull Image…") { showPullSheet = true }
+                    Button("Build Image…") { showBuildSheet = true }
                 }
             }
         }
         .navigationTitle("Images")
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showBuildSheet = true
+                } label: {
+                    Label("Build Image", systemImage: "hammer")
+                }
+                .help("Build an image from a Dockerfile")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showPullSheet = true
@@ -43,6 +53,9 @@ struct ImagesListView: View {
         }
         .sheet(isPresented: $showPullSheet) {
             ImagePullSheet()
+        }
+        .sheet(isPresented: $showBuildSheet) {
+            BuildImageSheet()
         }
         .errorAlert($store.lastError)
         .task {
