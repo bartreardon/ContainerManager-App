@@ -52,6 +52,9 @@ private struct MachineDetailContent: View {
         }
         .navigationTitle(machine.id)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                startStopButton
+            }
             ToolbarItem(placement: .principal) {
                 Picker("View", selection: $mode) {
                     ForEach(MachineDetailMode.allCases, id: \.self) { mode in
@@ -164,26 +167,33 @@ private struct MachineDetailContent: View {
         .formStyle(.grouped)
     }
 
+    /// Start/Stop lives on the leading edge of the toolbar, well away from the
+    /// "Open in Terminal" action, so reaching for a shell can't accidentally stop
+    /// the machine.
+    @ViewBuilder
+    private var startStopButton: some View {
+        if machine.status == .running {
+            Button {
+                Task { await store.stop(id: machine.id) }
+            } label: {
+                Label("Stop", systemImage: "stop.fill")
+            }
+            .help("Stop this machine")
+            .disabled(isBusy)
+        } else {
+            Button {
+                Task { await store.boot(id: machine.id) }
+            } label: {
+                Label("Start", systemImage: "play.fill")
+            }
+            .help("Start this machine")
+            .disabled(isBusy || machine.status == .stopping)
+        }
+    }
+
     @ToolbarContentBuilder
     private var machineActions: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            if machine.status == .running {
-                Button {
-                    Task { await store.stop(id: machine.id) }
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                .help("Stop this machine")
-                .disabled(isBusy)
-            } else {
-                Button {
-                    Task { await store.boot(id: machine.id) }
-                } label: {
-                    Label("Start", systemImage: "play.fill")
-                }
-                .help("Start this machine")
-                .disabled(isBusy || machine.status == .stopping)
-            }
             Button {
                 Task { await openShell() }
             } label: {
