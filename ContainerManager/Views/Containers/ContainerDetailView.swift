@@ -49,6 +49,9 @@ private struct ContainerDetailContent: View {
         }
         .navigationTitle(container.id)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                startStopButton
+            }
             ToolbarItem(placement: .principal) {
                 Picker("View", selection: $mode) {
                     ForEach(ContainerDetailMode.allCases, id: \.self) { mode in
@@ -160,26 +163,32 @@ private struct ContainerDetailContent: View {
         .formStyle(.grouped)
     }
 
+    /// Start/Stop lives on the leading edge of the toolbar, matching the machine
+    /// view and keeping the destructive Stop away from the other actions.
+    @ViewBuilder
+    private var startStopButton: some View {
+        if container.status == .running {
+            Button {
+                Task { await store.stop(id: container.id) }
+            } label: {
+                Label("Stop", systemImage: "stop.fill")
+            }
+            .help("Stop this container")
+            .disabled(isBusy)
+        } else {
+            Button {
+                Task { await store.start(id: container.id) }
+            } label: {
+                Label("Start", systemImage: "play.fill")
+            }
+            .help("Start this container")
+            .disabled(isBusy || container.status == .stopping)
+        }
+    }
+
     @ToolbarContentBuilder
     private var containerActions: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            if container.status == .running {
-                Button {
-                    Task { await store.stop(id: container.id) }
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                .help("Stop this container")
-                .disabled(isBusy)
-            } else {
-                Button {
-                    Task { await store.start(id: container.id) }
-                } label: {
-                    Label("Start", systemImage: "play.fill")
-                }
-                .help("Start this container")
-                .disabled(isBusy || container.status == .stopping)
-            }
             Button {
                 showLogs = true
             } label: {

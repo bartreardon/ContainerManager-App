@@ -10,6 +10,7 @@ struct ImagesListView: View {
     @Binding var selection: String?
     @Environment(ImagesStore.self) private var store
     @State private var showPullSheet = false
+    @State private var showBuildSheet = false
 
     var body: some View {
         @Bindable var store = store
@@ -24,14 +25,23 @@ struct ImagesListView: View {
                 ContentUnavailableView {
                     Label("No Images", systemImage: "opticaldiscdrive")
                 } description: {
-                    Text("Pull an image from a registry to use it for containers and machines.")
+                    Text("Pull an image from a registry, or build one from a Dockerfile, to use it for containers and machines.")
                 } actions: {
                     Button("Pull Image…") { showPullSheet = true }
+                    Button("Build Image…") { showBuildSheet = true }
                 }
             }
         }
         .navigationTitle("Images")
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showBuildSheet = true
+                } label: {
+                    Label("Build Image", systemImage: "hammer")
+                }
+                .help("Build an image from a Dockerfile")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showPullSheet = true
@@ -43,6 +53,9 @@ struct ImagesListView: View {
         }
         .sheet(isPresented: $showPullSheet) {
             ImagePullSheet()
+        }
+        .sheet(isPresented: $showBuildSheet) {
+            BuildImageSheet()
         }
         .errorAlert($store.lastError)
         .task {
@@ -83,6 +96,8 @@ struct ImageDetailView: View {
     let reference: String?
     @Environment(ImagesStore.self) private var store
     @State private var showDeleteConfirmation = false
+    @State private var showContainerCreate = false
+    @State private var showMachineCreate = false
 
     var body: some View {
         if let reference, let image = store.images.first(where: { $0.reference == reference }) {
@@ -92,6 +107,18 @@ struct ImageDetailView: View {
                     LabeledContent("Digest", value: image.digest)
                     if let size = store.sizes[image.digest] {
                         LabeledContent("Size", value: Format.bytes(size))
+                    }
+                }
+                Section("Use Image") {
+                    Button {
+                        showContainerCreate = true
+                    } label: {
+                        Label("Run Container from Image", systemImage: "shippingbox")
+                    }
+                    Button {
+                        showMachineCreate = true
+                    } label: {
+                        Label("Create Machine from Image", systemImage: "desktopcomputer")
                     }
                 }
             }
@@ -116,6 +143,12 @@ struct ImageDetailView: View {
                 }
             } message: {
                 Text("This removes the image from local storage.")
+            }
+            .sheet(isPresented: $showContainerCreate) {
+                ContainerCreateSheet(initialImage: image.reference.shortImageReference)
+            }
+            .sheet(isPresented: $showMachineCreate) {
+                MachineCreateSheet(initialImage: image.reference.shortImageReference)
             }
         } else {
             ContentUnavailableView("Select an Image", systemImage: "opticaldiscdrive")

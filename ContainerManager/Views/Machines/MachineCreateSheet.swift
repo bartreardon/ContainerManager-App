@@ -13,6 +13,12 @@ struct MachineCreateSheet: View {
     @State private var name = ""
     @State private var image = "alpine:3.22"
     @State private var cpus = MachineConfig.defaultCPUs
+
+    /// `initialImage` pre-fills the image field — e.g. when opened from the build sheet
+    /// with a freshly built tag. `nil` keeps the default.
+    init(initialImage: String? = nil) {
+        if let initialImage { _image = State(initialValue: initialImage) }
+    }
     @State private var memory = MachineConfig.defaultMemory.formatted
     @State private var homeMount: MachineConfig.HomeMountOption = MachineConfig.defaultHomeMount
     @State private var setAsDefault = false

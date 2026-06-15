@@ -14,6 +14,12 @@ struct ContainerCreateSheet: View {
     @State private var name = ""
     @State private var image = ""
     @State private var command = ""
+
+    /// `initialImage` pre-fills the image field — e.g. when opened from the build sheet
+    /// with a freshly built tag.
+    init(initialImage: String = "") {
+        _image = State(initialValue: initialImage)
+    }
     @State private var envText = ""
     @State private var cpusText = ""
     @State private var memory = ""

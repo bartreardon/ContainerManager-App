@@ -4,11 +4,16 @@ All notable changes to ContainerManager.
 
 ## 1.0.2 — 2026-06-15
 
+### New
+- **Build images from a Dockerfile.** The Images section gains a **Build Image…** action: edit a Dockerfile in-app, give it a tag, and build a local image with live output. Builds are saved under Application Support (Images › Build › *Reveal in Finder* to hand-manage and add files for `COPY`/`ADD`), and the build folder is the build context. The result is a normal local image, so it's immediately usable for containers and machines — with one-click **Create Machine** / **Run Container** shortcuts after a successful build (matching the "bring your own machine image" flow).
+- **Create a container or machine from any image.** The image detail view now has **Run Container** and **Create Machine** actions that open the create sheet prefilled with that image — so the shortcut isn't limited to a freshly built image.
+
 ### Fixed
 - **False "Base Environment Missing" on a working install.** The readiness check looked for the init-filesystem (`vminit`) image by an exact, build-time version tag. When the app was built against a different `containerization` version than the installed `container` CLI, the tags didn't match and a perfectly healthy system was reported as missing its base environment, with a Repair button that couldn't fix it.
 - **Fresh-install "Repair" deadlock.** Readiness no longer requires the `vminit` image to be present at all. That image is fetched on demand the first time a container or machine is created, so a brand-new install legitimately has none yet — but the old check hid the create UI behind a Repair wall, and the only thing that pulls `vminit` is creating something. The check now gates solely on a configured **default kernel** (the real boot prerequisite), which `system start --enable-kernel-install` installs and Repair can genuinely fix. The corresponding gate is retitled "Linux Kernel Not Installed."
 
 ### Changed
+- **Start/Stop moved to the toolbar's leading edge** in the machine and container detail views, with the Details/Terminal toggle centred and the remaining actions kept on the right. Stop is no longer next to "Open in Terminal," so reaching for a shell can't accidentally stop the machine or container.
 - **Dependency on the `container` package is now a pinned remote reference** (`apple/container`, exact `1.0.0`) instead of a local path that assumed a specific checkout layout. The project now builds on any machine without extra setup, and the pin keeps the app aligned with a known CLI version.
 
 ## 1.0.1 — 2026-06-14
