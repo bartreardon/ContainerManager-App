@@ -30,7 +30,7 @@ There is one relationship worth knowing: a running machine is assigned an **IP a
 
 ## Using a machine in ContainerManager
 
-1. **Machines → New Machine** to create one from an OCI image. The image must include an init system at `/sbin/init` — `alpine` works out of the box; a plain `ubuntu`/`debian` image does not (see the [upstream guide](https://github.com/apple/container/blob/main/docs/container-machine.md) for a machine-ready Dockerfile).
+1. **Machines → New Machine** to create one from an OCI image. The image must include an init system at `/sbin/init` — `alpine` works out of the box; a plain `ubuntu`/`debian` image does not. To make a machine-ready image, build one in the app under **Images → Build Image…** (see [Building images from a Dockerfile](building-images.md)), or follow the [upstream guide](https://github.com/apple/container/blob/main/docs/container-machine.md) for a machine-ready Dockerfile.
 2. Select the machine and switch the detail pane to the **Terminal** tab for an interactive shell right inside the app — you land as your own user, in your shared home directory. (The **Open in Terminal** toolbar button does the same in Terminal.app if you prefer.)
 3. Adjust CPUs / memory / home-mount under **Details**; changes apply on the next stop + start.
 

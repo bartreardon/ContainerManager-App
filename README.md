@@ -2,14 +2,14 @@
 
 A lightweight native macOS app for managing [Apple's `container`](https://github.com/apple/container) tool — Linux containers and the new **container machine** feature — without dropping to a terminal.
 
-ContainerManager is a SwiftUI front-end that links `container`'s own Swift client libraries and talks to its background services directly over XPC. It is not a wrapper around the CLI: lists, lifecycle actions, image pulls, networks, and volumes all go through the same client APIs the `container` command uses. (The CLI is invoked only for `system start`/`system stop` and for opening an interactive shell in Terminal.)
+ContainerManager is a SwiftUI front-end that links `container`'s own Swift client libraries and talks to its background services directly over XPC. It is not a wrapper around the CLI: lists, lifecycle actions, image pulls, networks, and volumes all go through the same client APIs the `container` command uses. (The CLI is invoked only for `system start`/`system stop`, `build`, and for opening an interactive shell in Terminal.)
 
 ## Features
 
 - **Stacks** — stand up a multi-container setup in one step. Pick a ready-made template (e.g. **WordPress + MariaDB**) or build a **custom stack** (a web service plus an optional database). ContainerManager creates a private network, persistent volumes, and the containers, and wires the web tier to the database automatically — no DNS or terminal needed. Whole-stack start/stop/delete and an "Open in Browser" shortcut. See the [Stacks guide](docs/stacks.md) for details.
 - **Machines** — create persistent Linux VMs from an OCI image, start/stop, set default, edit boot config (CPUs, memory, home-mount), view logs, and open a shell. Each machine has an **integrated terminal** (a Terminal tab in its detail view) for an interactive session without leaving the app, plus an "Open in Terminal" option for Terminal.app. Surfaces boot diagnostics when an image lacks an init system. New to machines? See [what a container machine is and when to use it](docs/container-machine.md).
 - **Containers** — create and run containers (image, command, env, CPUs/memory, network, published ports, volume/bind mounts), start/stop/kill/delete, and view logs.
-- **Images** — list local images, pull from a registry with progress, and delete.
+- **Images** — list local images, pull from a registry with progress, **build from a Dockerfile**, and delete. Each image can be turned straight into a container or machine from its detail view. See the [building images guide](docs/building-images.md).
 - **Networks** — create (NAT or host-only, optional CIDR), inspect subnet/gateway, and delete. The built-in `default` network is protected.
 - **Volumes** — create named volumes for persistent storage, inspect host path/size, and delete (guarded while in use).
 - **System** — see whether the `container` services are running, with the daemon version, and start/stop them from the status footer.

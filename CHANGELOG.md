@@ -16,6 +16,9 @@ All notable changes to ContainerManager.
 - **Start/Stop moved to the toolbar's leading edge** in the machine and container detail views, with the Details/Terminal toggle centred and the remaining actions kept on the right. Stop is no longer next to "Open in Terminal," so reaching for a shell can't accidentally stop the machine or container.
 - **Dependency on the `container` package is now a pinned remote reference** (`apple/container`, exact `1.0.0`) instead of a local path that assumed a specific checkout layout. The project now builds on any machine without extra setup, and the pin keeps the app aligned with a known CLI version.
 
+### Docs
+- Added a [building images guide](docs/building-images.md); updated the Images feature list and the container-machine guide to point at the in-app build flow.
+
 ## 1.0.1 — 2026-06-14
 
 ### New
