@@ -3,6 +3,7 @@
 //  ContainerManager
 //
 
+import AppKit
 import SwiftUI
 
 /// Holds the streamed build log. An observable reference type so the `onLine`
@@ -79,10 +80,23 @@ struct BuildImageSheet: View {
                     .foregroundStyle(.secondary)
                 }
 
-                Section("Dockerfile") {
+                Section {
                     TextEditor(text: $dockerfile)
                         .font(.body.monospaced())
                         .frame(minHeight: 150)
+                } header: {
+                    HStack {
+                        Text("Dockerfile")
+                        Spacer()
+                        Button {
+                            importDockerfile()
+                        } label: {
+                            Label("Import from File…", systemImage: "square.and.arrow.down")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Load a Dockerfile from disk into the editor")
+                    }
                 }
 
                 if !session.log.isEmpty {
@@ -163,6 +177,24 @@ struct BuildImageSheet: View {
 
     private func refreshSaved() {
         savedBuilds = BuildLibrary.list()
+    }
+
+    /// Loads a Dockerfile from disk into the editor. Dockerfiles often have no
+    /// extension, so any file is selectable.
+    private func importDockerfile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a Dockerfile to load into the editor"
+        panel.prompt = "Import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            dockerfile = try String(contentsOf: url, encoding: .utf8)
+            error = nil
+        } catch {
+            self.error = PresentedError(title: "Couldn't read file", error: error)
+        }
     }
 
     private func load(_ saved: String) {

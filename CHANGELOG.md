@@ -2,6 +2,14 @@
 
 All notable changes to ContainerManager.
 
+## 1.0.3 — 2026-06-23
+
+### New
+- **Import a Dockerfile from a file.** The Build Image sheet now has an **Import from File…** button next to the Dockerfile editor, alongside typing or pasting — pick any file on disk and its contents load into the editor.
+
+### Fixed
+- **Homebrew installs not detected** ([#1](https://github.com/bartreardon/ContainerManager-App/issues/1)). When `container` was installed via Homebrew (`/opt/homebrew/bin`), the app reported it as not installed and offered to reinstall. The CLI path resolver now checks the Homebrew location in addition to `/usr/local/bin`.
+
 ## 1.0.2 — 2026-06-15
 
 ### New
