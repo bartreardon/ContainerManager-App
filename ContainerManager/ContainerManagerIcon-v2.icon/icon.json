@@ -17,22 +17,49 @@
   },
   "groups" : [
     {
+      "blur-material" : 0.5,
       "layers" : [
         {
-          "blend-mode" : "normal",
-          "glass" : true,
+          "glass" : false,
           "image-name" : "Image 7.heif",
           "name" : "Image 7",
           "position" : {
             "scale" : 0.6,
             "translation-in-points" : [
               256.125,
-              275
+              -275
             ]
           }
         },
         {
+          "fill" : "none",
           "glass" : true,
+          "image-name" : "Image 5.heif",
+          "name" : "Image 5",
+          "position" : {
+            "scale" : 0.7,
+            "translation-in-points" : [
+              164.9000000000001,
+              -275
+            ]
+          }
+        }
+      ],
+      "name" : "Top Slider",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "blur-material" : null,
+      "layers" : [
+        {
+          "glass" : false,
           "image-name" : "Image 7.heif",
           "name" : "Image 7",
           "position" : {
@@ -44,76 +71,64 @@
           }
         },
         {
+          "fill" : "none",
           "glass" : true,
+          "image-name" : "Image 6.heif",
+          "name" : "Image 6",
+          "position" : {
+            "scale" : 0.7,
+            "translation-in-points" : [
+              164.9000000000001,
+              0
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "name" : "Middle Slider",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : false,
           "image-name" : "Image 7.heif",
           "name" : "Image 7",
           "position" : {
             "scale" : 0.6,
             "translation-in-points" : [
               256.125,
-              -275
-            ]
-          }
-        }
-      ],
-      "name" : "Buttons",
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
-    },
-    {
-      "layers" : [
-        {
-          "fill" : "none",
-          "glass" : true,
-          "image-name" : "Image 6.heif",
-          "name" : "Image 6",
-          "position" : {
-            "scale" : 0.65,
-            "translation-in-points" : [
-              172.9000000000001,
-              0
-            ]
-          }
-        },
-        {
-          "blend-mode" : "normal",
-          "fill" : {
-            "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
-          },
-          "glass" : true,
-          "image-name" : "Image 5.heif",
-          "name" : "Image 5",
-          "position" : {
-            "scale" : 0.65,
-            "translation-in-points" : [
-              173,
               275
             ]
           }
         },
         {
-          "fill" : {
-            "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
-          },
+          "blend-mode" : "normal",
+          "fill" : "none",
           "glass" : true,
           "image-name" : "Image 5.heif",
           "name" : "Image 5",
           "position" : {
-            "scale" : 0.65,
+            "scale" : 0.7,
             "translation-in-points" : [
-              173,
-              -275
+              164.9000000000001,
+              275
             ]
           }
         }
       ],
-      "name" : "Pills",
+      "lighting" : "individual",
+      "name" : "Bottom",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
@@ -124,24 +139,13 @@
       }
     },
     {
+      "blur-material" : null,
       "layers" : [
-        {
-          "fill" : "none",
-          "image-name" : "Image 2.heif",
-          "name" : "Image 2",
-          "opacity" : 1,
-          "position" : {
-            "scale" : 0.65,
-            "translation-in-points" : [
-              0.6499999999999773,
-              0
-            ]
-          }
-        },
         {
           "blend-mode" : "normal",
           "fill" : "none",
           "glass" : true,
+          "hidden" : false,
           "image-name" : "Image 2.heif",
           "name" : "Image 2",
           "opacity" : 1,
@@ -155,6 +159,21 @@
         },
         {
           "fill" : "none",
+          "glass" : true,
+          "image-name" : "Image 2.heif",
+          "name" : "Image 2",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              0.6499999999999773,
+              0
+            ]
+          }
+        },
+        {
+          "fill" : "none",
+          "glass" : true,
           "image-name" : "Image 2.heif",
           "name" : "Image 2",
           "opacity" : 1,
@@ -167,11 +186,13 @@
           }
         }
       ],
+      "lighting" : "individual",
       "name" : "Containers",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
         "value" : 0.5
@@ -179,9 +200,8 @@
     }
   ],
   "supported-platforms" : {
-    "circles" : [
-      "watchOS"
-    ],
-    "squares" : "shared"
+    "squares" : [
+      "macOS"
+    ]
   }
 }
