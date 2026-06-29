@@ -16,6 +16,7 @@ struct ContainerManagerApp: App {
     @State private var networksStore = NetworksStore()
     @State private var volumesStore = VolumesStore()
     @State private var stacksStore = StacksStore()
+    @State private var imageImportModel = ImageImportModel()
 
     var body: some Scene {
         WindowGroup {
@@ -27,6 +28,10 @@ struct ContainerManagerApp: App {
                 .environment(networksStore)
                 .environment(volumesStore)
                 .environment(stacksStore)
+                .environment(imageImportModel)
+        }
+        .commands {
+            AppCommands(systemStore: systemStore)
         }
     }
 }

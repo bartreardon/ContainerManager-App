@@ -45,15 +45,31 @@ struct EmbeddedTerminalView: NSViewRepresentable {
             environment: environmentList,
             currentDirectory: workingDirectory
         )
+
+        // Grab focus on the next runloop tick, once the view is in a window.
+        // (updateNSView also covers this in case the window attaches later.)
+        let coordinator = context.coordinator
+        DispatchQueue.main.async { [weak view] in
+            guard let view, !coordinator.hasFocused, let window = view.window else { return }
+            window.makeFirstResponder(view)
+            coordinator.hasFocused = true
+        }
         return view
     }
 
     func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
         context.coordinator.onTerminated = onTerminated
+        // Put keyboard focus in the terminal once it's in a window, so you can type
+        // immediately. Only once per session (the view is recreated on reconnect).
+        if !context.coordinator.hasFocused, let window = nsView.window {
+            window.makeFirstResponder(nsView)
+            context.coordinator.hasFocused = true
+        }
     }
 
     final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
         var onTerminated: (Int32?) -> Void
+        var hasFocused = false
 
         init(onTerminated: @escaping (Int32?) -> Void) {
             self.onTerminated = onTerminated

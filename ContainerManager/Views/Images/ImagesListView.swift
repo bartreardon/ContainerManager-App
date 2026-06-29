@@ -6,11 +6,22 @@
 import ContainerAPIClient
 import SwiftUI
 
+/// A request to open the Build sheet, optionally prefilled with a Dockerfile
+/// (from the toolbar/empty-state buttons, or a dropped/imported file).
+private struct BuildRequest: Identifiable {
+    let id = UUID()
+    var dockerfile: String?
+}
+
 struct ImagesListView: View {
     @Binding var selection: String?
     @Environment(ImagesStore.self) private var store
+    @Environment(ImageImportModel.self) private var imageImport
+    @Environment(WindowRouter.self) private var router
     @State private var showPullSheet = false
-    @State private var showBuildSheet = false
+    @State private var buildRequest: BuildRequest?
+    @State private var dropTargeted = false
+    @State private var deleteCandidate: String?
 
     var body: some View {
         @Bindable var store = store
@@ -18,25 +29,42 @@ struct ImagesListView: View {
             ForEach(store.images, id: \.reference) { image in
                 ImageRow(image: image, size: store.sizes[image.digest])
                     .tag(image.reference)
+                    .contextMenu {
+                        Button("Delete…", role: .destructive) { deleteCandidate = image.reference }
+                    }
             }
         }
+        .contextMenu { Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() } }
         .overlay {
             if store.images.isEmpty {
                 ContentUnavailableView {
                     Label("No Images", systemImage: "opticaldiscdrive")
                 } description: {
-                    Text("Pull an image from a registry, or build one from a Dockerfile, to use it for containers and machines.")
+                    Text("Pull an image from a registry, or build one from a Dockerfile — drag a Dockerfile here to start a build.")
                 } actions: {
                     Button("Pull Image…") { showPullSheet = true }
-                    Button("Build Image…") { showBuildSheet = true }
+                    Button("Build Image…") { buildRequest = BuildRequest() }
                 }
             }
         }
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                    .padding(4)
+                    .allowsHitTesting(false)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first, let text = ImageImportModel.dockerfile(at: url) else { return false }
+            buildRequest = BuildRequest(dockerfile: text)
+            return true
+        } isTargeted: { dropTargeted = $0 }
         .navigationTitle("Images")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    showBuildSheet = true
+                    buildRequest = BuildRequest()
                 } label: {
                     Label("Build Image", systemImage: "hammer")
                 }
@@ -54,15 +82,51 @@ struct ImagesListView: View {
         .sheet(isPresented: $showPullSheet) {
             ImagePullSheet()
         }
-        .sheet(isPresented: $showBuildSheet) {
-            BuildImageSheet()
+        .sheet(item: $buildRequest) { request in
+            BuildImageSheet(initialDockerfile: request.dockerfile)
+        }
+        .confirmationDialog(
+            "Delete the image “\(deleteCandidate?.shortImageReference ?? "")”?",
+            isPresented: deleteBinding
+        ) {
+            Button("Delete", role: .destructive) {
+                if let reference = deleteCandidate { Task { await store.delete(reference: reference) } }
+                deleteCandidate = nil
+            }
+        } message: {
+            Text("This removes the image from local storage.")
         }
         .errorAlert($store.lastError)
+        .onAppear {
+            consumePendingImport()
+            consumeCreate()
+        }
+        .onChange(of: imageImport.pendingDockerfile) { consumePendingImport() }
+        .onChange(of: router.pendingCreate) { consumeCreate() }
         .task {
             while !Task.isCancelled {
                 await store.refresh()
                 try? await Task.sleep(for: .seconds(10))
             }
+        }
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+    }
+
+    /// Picks up a Dockerfile dropped on the sidebar's Images entry.
+    private func consumePendingImport() {
+        guard let text = imageImport.pendingDockerfile else { return }
+        buildRequest = BuildRequest(dockerfile: text)
+        imageImport.pendingDockerfile = nil
+    }
+
+    /// New ▸ Image (menu/context) opens the Build sheet.
+    private func consumeCreate() {
+        if router.pendingCreate == .images {
+            buildRequest = BuildRequest()
+            router.pendingCreate = nil
         }
     }
 }

@@ -8,17 +8,38 @@ import SwiftUI
 
 struct SidebarView: View {
     @Binding var selection: SidebarSection
+    @Environment(ImageImportModel.self) private var imageImport
+    @Environment(WindowRouter.self) private var router
 
     var body: some View {
         VStack(spacing: 0) {
             List(selection: $selection) {
                 ForEach(SidebarSection.allCases) { section in
-                    Label(section.rawValue, systemImage: section.systemImage)
-                        .tag(section)
+                    row(section)
                 }
             }
             Divider()
             SystemStatusFooter()
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ section: SidebarSection) -> some View {
+        let label = Label(section.rawValue, systemImage: section.systemImage)
+            .tag(section)
+            .contextMenu {
+                Button(section.newItemLabel) { router.requestCreate(section) }
+            }
+        // The Images row also accepts a dropped Dockerfile to start a build.
+        if section == .images {
+            label.dropDestination(for: URL.self) { urls, _ in
+                guard let url = urls.first, let text = ImageImportModel.dockerfile(at: url) else { return false }
+                imageImport.pendingDockerfile = text
+                selection = .images
+                return true
+            }
+        } else {
+            label
         }
     }
 }

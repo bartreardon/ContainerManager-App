@@ -2,10 +2,20 @@
 
 All notable changes to ContainerManager.
 
-## 1.0.3 — 2026-06-23
+## 1.0.4 — 2026-06-23
 
 ### New
-- **Import a Dockerfile from a file.** The Build Image sheet now has an **Import from File…** button next to the Dockerfile editor, alongside typing or pasting — pick any file on disk and its contents load into the editor.
+- **Right-click context menus.**
+  - Sidebar category rows → **New …** for that category.
+  - A list's empty/blank area → **New …** for the current category.
+  - A list item → **Start / Stop / Delete** (as applicable). Machines and containers also offer **Open Terminal** (in-app tab) and **Open in Terminal.app**.
+- **Menu bar commands** (with shortcuts where it makes sense):
+  - **File ▸ New ▸** Machine (⇧⌘M), Container (⇧⌘K), Stack (⇧⌘S), Image (⇧⌘B), Network, Volume.
+  - **File ▸ Start / Stop Container Services.**
+  - **View ▸** one item per category, **⌘1–⌘6**, switching the focused window.
+  - **Help** rebuilt with links to the GitHub repo and the bundled guides (replacing the default "Help isn't available").
+- **Import a Dockerfile from a file.** The Build Image sheet has an **Import from File…** button next to the editor — pick any file on disk and its contents load in.
+- **Drag a Dockerfile to build.** Drop a Dockerfile (or a folder containing one) onto the Images view or the sidebar's **Images** entry to open the Build sheet prefilled with it.
 
 ### Fixed
 - **Homebrew installs not detected** ([#1](https://github.com/bartreardon/ContainerManager-App/issues/1)). When `container` was installed via Homebrew (`/opt/homebrew/bin`), the app reported it as not installed and offered to reinstall. The CLI path resolver now checks the Homebrew location in addition to `/usr/local/bin`.

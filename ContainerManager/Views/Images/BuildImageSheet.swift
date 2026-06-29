@@ -24,8 +24,14 @@ struct BuildImageSheet: View {
 
     @State private var name = ""
     @State private var tag = ""
-    @State private var dockerfile = "FROM alpine:latest\n"
+    @State private var dockerfile: String
     @State private var savedBuilds: [String] = []
+
+    /// `initialDockerfile` seeds the editor (e.g. from an imported/dropped file);
+    /// nil starts from a minimal template.
+    init(initialDockerfile: String? = nil) {
+        _dockerfile = State(initialValue: initialDockerfile ?? "FROM alpine:latest\n")
+    }
 
     @State private var session = BuildSession()
     @State private var built = false

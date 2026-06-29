@@ -30,6 +30,7 @@ struct ContainerDetailView: View {
 private struct ContainerDetailContent: View {
     let container: ContainerSnapshot
     @Environment(ContainersStore.self) private var store
+    @Environment(WindowRouter.self) private var router
     @State private var mode: ContainerDetailMode = .info
     @State private var terminalSessionId = UUID()
     @State private var terminalExited = false
@@ -69,6 +70,8 @@ private struct ContainerDetailContent: View {
                 terminalSessionId = UUID()
             }
         }
+        .onAppear(perform: consumeTerminalRequest)
+        .onChange(of: router.openTerminalForId) { consumeTerminalRequest() }
         .confirmationDialog(
             "Delete the container “\(container.id)”?",
             isPresented: $showDeleteConfirmation
@@ -88,6 +91,14 @@ private struct ContainerDetailContent: View {
             LogsSheet(title: "\(container.id) Logs", hasBootLog: true) {
                 try await ContainerClient().logs(id: container.id)
             }
+        }
+    }
+
+    /// Opens the Terminal tab when the sidebar/list/menu requested a shell for this container.
+    private func consumeTerminalRequest() {
+        if router.openTerminalForId == container.id {
+            mode = .terminal
+            router.openTerminalForId = nil
         }
     }
 

@@ -9,7 +9,9 @@ import SwiftUI
 struct ContainersListView: View {
     @Binding var selection: String?
     @Environment(ContainersStore.self) private var store
+    @Environment(WindowRouter.self) private var router
     @State private var showCreateSheet = false
+    @State private var deleteCandidate: String?
 
     var body: some View {
         @Bindable var store = store
@@ -17,8 +19,10 @@ struct ContainersListView: View {
             ForEach(store.containers, id: \.id) { container in
                 ContainerRow(container: container)
                     .tag(container.id)
+                    .contextMenu { rowMenu(container) }
             }
         }
+        .contextMenu { Button(SidebarSection.containers.newItemLabel) { showCreateSheet = true } }
         .overlay {
             if store.containers.isEmpty {
                 ContentUnavailableView {
@@ -44,12 +48,65 @@ struct ContainersListView: View {
         .sheet(isPresented: $showCreateSheet) {
             ContainerCreateSheet()
         }
+        .confirmationDialog(
+            "Delete the container “\(deleteCandidate ?? "")”?",
+            isPresented: deleteBinding
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = deleteCandidate { Task { await store.delete(id: id, force: true) } }
+                deleteCandidate = nil
+            }
+        } message: {
+            Text("This permanently removes the container.")
+        }
         .errorAlert($store.lastError)
+        .onAppear(perform: consumeCreate)
+        .onChange(of: router.pendingCreate) { consumeCreate() }
         .task {
             while !Task.isCancelled {
                 await store.refresh()
                 try? await Task.sleep(for: .seconds(5))
             }
+        }
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+    }
+
+    @ViewBuilder
+    private func rowMenu(_ container: ContainerSnapshot) -> some View {
+        if container.status == .running {
+            Button("Stop") { Task { await store.stop(id: container.id) } }
+            Button("Open Terminal") { router.openTerminal(id: container.id, in: .containers) }
+            Button("Open in Terminal.app") { openInTerminalApp(container.id) }
+        } else {
+            Button("Start") { Task { await store.start(id: container.id) } }
+        }
+        Divider()
+        Button("Delete…", role: .destructive) { deleteCandidate = container.id }
+    }
+
+    private func openInTerminalApp(_ id: String) {
+        Task {
+            switch await TerminalLauncher.openContainerShell(containerId: id) {
+            case .opened, .openedViaFallback:
+                break
+            case .automationDenied:
+                store.lastError = PresentedError(
+                    title: "Terminal access needed",
+                    message: "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
+                )
+            case .failed(let message):
+                store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
+            }
+        }
+    }
+
+    private func consumeCreate() {
+        if router.pendingCreate == .containers {
+            showCreateSheet = true
+            router.pendingCreate = nil
         }
     }
 }

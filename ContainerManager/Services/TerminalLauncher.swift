@@ -20,14 +20,25 @@ enum TerminalLauncher {
     private static let notPermittedErrorCode = -1743
 
     /// Opens an interactive shell to the given machine in Terminal.app.
-    ///
-    /// Tries AppleScript first, which triggers the system's automation consent prompt
-    /// on first use. If consent is denied, falls back to opening a .command file with
-    /// Terminal, which requires no automation permission.
     static func openMachineShell(machineId: String) async -> ShellResult {
-        // Machine ids are restricted to [a-z0-9-]; the binary path is shell-quoted.
-        let command = "'\(CLIRunner.containerBinary)' machine run --name \(machineId)"
+        await openShell(
+            command: "'\(CLIRunner.containerBinary)' machine run --name \(machineId)",
+            fallbackName: "container-shell-\(machineId)"
+        )
+    }
 
+    /// Opens an interactive shell inside the given running container in Terminal.app.
+    static func openContainerShell(containerId: String) async -> ShellResult {
+        await openShell(
+            command: "'\(CLIRunner.containerBinary)' exec -t -i \(containerId) sh",
+            fallbackName: "container-exec-\(containerId)"
+        )
+    }
+
+    /// Runs `command` in Terminal.app. Tries AppleScript first, which triggers the
+    /// system's automation consent prompt on first use; if consent is denied, falls
+    /// back to opening a .command file with Terminal, which needs no automation.
+    private static func openShell(command: String, fallbackName: String) async -> ShellResult {
         let script = """
             tell application "Terminal"
                 activate
@@ -48,7 +59,7 @@ enum TerminalLauncher {
         }
 
         do {
-            try await openCommandFile(named: "container-shell-\(machineId)", command: command)
+            try await openCommandFile(named: fallbackName, command: command)
             return .openedViaFallback
         } catch {
             return .automationDenied

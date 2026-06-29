@@ -31,6 +31,7 @@ struct MachineDetailView: View {
 private struct MachineDetailContent: View {
     let machine: MachineSnapshot
     @Environment(MachinesStore.self) private var store
+    @Environment(WindowRouter.self) private var router
     @State private var mode: MachineDetailMode = .info
     @State private var terminalSessionId = UUID()
     @State private var terminalExited = false
@@ -72,6 +73,8 @@ private struct MachineDetailContent: View {
                 terminalSessionId = UUID()
             }
         }
+        .onAppear(perform: consumeTerminalRequest)
+        .onChange(of: router.openTerminalForId) { consumeTerminalRequest() }
         .confirmationDialog(
             "Delete the machine “\(machine.id)”?",
             isPresented: $showDeleteConfirmation
@@ -95,6 +98,14 @@ private struct MachineDetailContent: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("ContainerManager needs permission to control Terminal to open a shell. Enable ContainerManager under Automation in Privacy & Security settings, then try again.")
+        }
+    }
+
+    /// Opens the Terminal tab when the sidebar/list/menu requested a shell for this machine.
+    private func consumeTerminalRequest() {
+        if router.openTerminalForId == machine.id {
+            mode = .terminal
+            router.openTerminalForId = nil
         }
     }
 

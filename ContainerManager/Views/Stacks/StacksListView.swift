@@ -3,12 +3,15 @@
 //  ContainerManager
 //
 
+import AppKit
 import SwiftUI
 
 struct StacksListView: View {
     @Binding var selection: String?
     @Environment(StacksStore.self) private var store
+    @Environment(WindowRouter.self) private var router
     @State private var presentedSheet: StackCreateKind?
+    @State private var deleteCandidate: String?
 
     var body: some View {
         @Bindable var store = store
@@ -16,8 +19,10 @@ struct StacksListView: View {
             ForEach(store.stacks) { stack in
                 StackRow(stack: stack)
                     .tag(stack.name)
+                    .contextMenu { rowMenu(stack) }
             }
         }
+        .contextMenu { createMenu }
         .overlay {
             if store.stacks.isEmpty {
                 ContentUnavailableView {
@@ -52,12 +57,51 @@ struct StacksListView: View {
                 CustomStackSheet()
             }
         }
+        .confirmationDialog(
+            "Delete the stack “\(deleteCandidate ?? "")”?",
+            isPresented: deleteBinding
+        ) {
+            Button("Delete", role: .destructive) {
+                if let name = deleteCandidate { Task { await store.delete(name: name) } }
+                deleteCandidate = nil
+            }
+        } message: {
+            Text("Removes all of the stack's containers and its network. Data volumes are kept.")
+        }
         .errorAlert($store.lastError)
+        .onAppear(perform: consumeCreate)
+        .onChange(of: router.pendingCreate) { consumeCreate() }
         .task {
             while !Task.isCancelled {
                 await store.refresh()
                 try? await Task.sleep(for: .seconds(5))
             }
+        }
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+    }
+
+    @ViewBuilder
+    private func rowMenu(_ stack: Stack) -> some View {
+        if !stack.allRunning {
+            Button("Start") { Task { await store.start(name: stack.name) } }
+        }
+        if stack.anyRunning {
+            Button("Stop") { Task { await store.stop(name: stack.name) } }
+        }
+        if let url = stack.webURL {
+            Button("Open in Browser") { NSWorkspace.shared.open(url) }
+        }
+        Divider()
+        Button("Delete…", role: .destructive) { deleteCandidate = stack.name }
+    }
+
+    private func consumeCreate() {
+        if router.pendingCreate == .stacks {
+            presentedSheet = .custom
+            router.pendingCreate = nil
         }
     }
 

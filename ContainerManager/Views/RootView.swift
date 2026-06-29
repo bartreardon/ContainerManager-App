@@ -7,35 +7,30 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(SystemStore.self) private var systemStore
-    @State private var section: SidebarSection = .machines
-    @State private var selectedMachineId: String?
-    @State private var selectedContainerId: String?
-    @State private var selectedImageReference: String?
-    @State private var selectedNetworkId: String?
-    @State private var selectedVolumeName: String?
-    @State private var selectedStackName: String?
+    @State private var router = WindowRouter()
 
     var body: some View {
         @Bindable var systemStore = systemStore
+        @Bindable var router = router
         NavigationSplitView {
-            SidebarView(selection: $section)
+            SidebarView(selection: $router.section)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } content: {
             Group {
                 if systemStore.isReady {
-                    switch section {
+                    switch router.section {
                     case .stacks:
-                        StacksListView(selection: $selectedStackName)
+                        StacksListView(selection: $router.selectedStackName)
                     case .machines:
-                        MachinesListView(selection: $selectedMachineId)
+                        MachinesListView(selection: $router.selectedMachineId)
                     case .containers:
-                        ContainersListView(selection: $selectedContainerId)
+                        ContainersListView(selection: $router.selectedContainerId)
                     case .images:
-                        ImagesListView(selection: $selectedImageReference)
+                        ImagesListView(selection: $router.selectedImageReference)
                     case .networks:
-                        NetworksListView(selection: $selectedNetworkId)
+                        NetworksListView(selection: $router.selectedNetworkId)
                     case .volumes:
-                        VolumesListView(selection: $selectedVolumeName)
+                        VolumesListView(selection: $router.selectedVolumeName)
                     }
                 } else {
                     DaemonGateView()
@@ -44,25 +39,27 @@ struct RootView: View {
             .navigationSplitViewColumnWidth(min: 280, ideal: 340)
         } detail: {
             if systemStore.isReady {
-                switch section {
+                switch router.section {
                 case .stacks:
-                    StackDetailView(stackName: selectedStackName)
+                    StackDetailView(stackName: router.selectedStackName)
                 case .machines:
-                    MachineDetailView(machineId: selectedMachineId)
+                    MachineDetailView(machineId: router.selectedMachineId)
                 case .containers:
-                    ContainerDetailView(containerId: selectedContainerId)
+                    ContainerDetailView(containerId: router.selectedContainerId)
                 case .images:
-                    ImageDetailView(reference: selectedImageReference)
+                    ImageDetailView(reference: router.selectedImageReference)
                 case .networks:
-                    NetworkDetailView(networkId: selectedNetworkId)
+                    NetworkDetailView(networkId: router.selectedNetworkId)
                 case .volumes:
-                    VolumeDetailView(volumeName: selectedVolumeName)
+                    VolumeDetailView(volumeName: router.selectedVolumeName)
                 }
             } else {
                 Color.clear
             }
         }
         .frame(minWidth: 900, minHeight: 520)
+        .environment(router)
+        .focusedSceneValue(\.windowRouter, router)
         .errorAlert($systemStore.lastError)
         .task {
             while !Task.isCancelled {
