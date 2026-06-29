@@ -67,7 +67,6 @@ private struct StackDetailContent: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(stack.name)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 if stack.allRunning {

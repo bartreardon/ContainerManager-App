@@ -6,14 +6,28 @@
 import ContainerResource
 import SwiftUI
 
+/// A status indicator that conveys state by **shape and colour** (not colour alone),
+/// and exposes the status as text to VoiceOver.
 struct StatusDot: View {
     let status: RuntimeStatus
 
     var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 9, height: 9)
-            .help(status.rawValue.capitalized)
+        Image(systemName: symbol)
+            .font(.system(size: 10))
+            .foregroundStyle(color)
+            .help(label)
+            .accessibilityLabel(label)
+    }
+
+    private var label: String { status.rawValue.capitalized }
+
+    private var symbol: String {
+        switch status {
+        case .running: "circle.fill"
+        case .stopping: "circle.dotted"
+        case .stopped: "circle"
+        case .unknown: "questionmark.circle"
+        }
     }
 
     private var color: Color {

@@ -55,7 +55,6 @@ private struct NetworkDetailContent: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(network.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(role: .destructive) {

@@ -48,7 +48,6 @@ private struct ContainerDetailContent: View {
             case .terminal: terminalPane
             }
         }
-        .navigationTitle(container.id)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 startStopButton
@@ -113,6 +112,7 @@ private struct ContainerDetailContent: View {
                     terminalExited = true
                 }
                 .id(terminalSessionId)
+                .accessibilityLabel("Terminal for \(container.id)")
                 if terminalExited {
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle").foregroundStyle(.secondary)

@@ -3,6 +3,7 @@
 //  ContainerManager
 //
 
+import AppKit
 import SwiftUI
 
 /// Menu bar commands. Per-window actions (New ▸, View ▸) target the focused
@@ -40,6 +41,9 @@ struct AppCommands: Commands {
                 }
             }
             .disabled(router == nil)
+
+            Button("New Tab") { openNewTab() }
+                .keyboardShortcut("t", modifiers: .command)
         }
 
         // File ▸ container services
@@ -78,5 +82,16 @@ struct AppCommands: Commands {
 
     private func docURL(_ file: String) -> URL {
         URL(string: "https://github.com/bartreardon/ContainerManager-App/blob/main/docs/\(file)")!
+    }
+
+    /// Opens a new window as a tab of the current one (⌘T), keeping ⌘N = New Window.
+    private func openNewTab() {
+        guard let currentWindow = NSApp.keyWindow,
+            let windowController = currentWindow.windowController
+        else { return }
+        windowController.newWindowForTab(nil)
+        if let newWindow = NSApp.keyWindow, currentWindow != newWindow {
+            currentWindow.addTabbedWindow(newWindow, ordered: .above)
+        }
     }
 }

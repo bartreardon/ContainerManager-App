@@ -2,6 +2,22 @@
 
 All notable changes to ContainerManager.
 
+## 1.0.5 — 2026-06-23
+
+A "Mac-native polish" release.
+
+### New
+- **Multi-selection + bulk actions.** Shift/⌘-click to select several items (⌘A selects all); right-click acts on the whole selection — Start / Stop / Delete many machines, containers, stacks, images, networks, or volumes at once.
+- **Copy & drag-out.** ⌘C (and drag) copies an item's name/id as text — images copy their full reference (e.g. `docker.io/library/nginx:latest`) — to paste into Terminal, a Dockerfile, or the app's own fields.
+- **Search.** Each section has a search field (⌘F) to filter by name/id/image.
+- **Settings window (⌘,).** Set the container CLI location (or leave it Automatic) and the list refresh interval.
+- **Window tabs.** ⌘T opens a new tab (⌘N still opens a new window); the tab title shows the current section and selected item, e.g. "Machines — dev".
+
+### Changed
+- The detail pane shows a count when several items are selected.
+- Status indicators now convey state by **shape and colour** (and read out to VoiceOver), not colour alone.
+- Remembers the selected section per window across launches.
+
 ## 1.0.4 — 2026-06-23
 
 ### New

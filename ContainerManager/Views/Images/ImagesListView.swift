@@ -14,27 +14,35 @@ private struct BuildRequest: Identifiable {
 }
 
 struct ImagesListView: View {
-    @Binding var selection: String?
+    @Binding var selection: Set<String>
     @Environment(ImagesStore.self) private var store
     @Environment(ImageImportModel.self) private var imageImport
     @Environment(WindowRouter.self) private var router
     @State private var showPullSheet = false
     @State private var buildRequest: BuildRequest?
     @State private var dropTargeted = false
-    @State private var deleteCandidate: String?
+    @State private var deleteCandidates: Set<String> = []
+    @State private var searchText = ""
+
+    private var images: [ClientImage] {
+        guard !searchText.isEmpty else { return store.images }
+        return store.images.filter { $0.reference.localizedCaseInsensitiveContains(searchText) }
+    }
 
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(store.images, id: \.reference) { image in
+            ForEach(images, id: \.reference) { image in
                 ImageRow(image: image, size: store.sizes[image.digest])
                     .tag(image.reference)
-                    .contextMenu {
-                        Button("Delete…", role: .destructive) { deleteCandidate = image.reference }
-                    }
+                    .draggable(image.reference)
+                    .copyable([image.reference])
             }
         }
-        .contextMenu { Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() } }
+        .contextMenu(forSelectionType: String.self) { ids in
+            rowMenu(ids)
+        }
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Filter images")
         .overlay {
             if store.images.isEmpty {
                 ContentUnavailableView {
@@ -60,7 +68,6 @@ struct ImagesListView: View {
             buildRequest = BuildRequest(dockerfile: text)
             return true
         } isTargeted: { dropTargeted = $0 }
-        .navigationTitle("Images")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -86,15 +93,18 @@ struct ImagesListView: View {
             BuildImageSheet(initialDockerfile: request.dockerfile)
         }
         .confirmationDialog(
-            "Delete the image “\(deleteCandidate?.shortImageReference ?? "")”?",
+            deleteCandidates.count > 1
+                ? "Delete \(deleteCandidates.count) images?"
+                : "Delete the image “\(deleteCandidates.first?.shortImageReference ?? "")”?",
             isPresented: deleteBinding
         ) {
             Button("Delete", role: .destructive) {
-                if let reference = deleteCandidate { Task { await store.delete(reference: reference) } }
-                deleteCandidate = nil
+                let refs = deleteCandidates
+                Task { for reference in refs { await store.delete(reference: reference) } }
+                deleteCandidates = []
             }
         } message: {
-            Text("This removes the image from local storage.")
+            Text("This removes the image\(deleteCandidates.count > 1 ? "s" : "") from local storage.")
         }
         .errorAlert($store.lastError)
         .onAppear {
@@ -106,13 +116,24 @@ struct ImagesListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
-                try? await Task.sleep(for: .seconds(10))
+                try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
     }
 
     private var deleteBinding: Binding<Bool> {
-        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+    }
+
+    @ViewBuilder
+    private func rowMenu(_ ids: Set<String>) -> some View {
+        if ids.isEmpty {
+            Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() }
+        } else {
+            Button(ids.count > 1 ? "Copy References" : "Copy Reference") { Pasteboard.copy(ids.sorted()) }
+            Divider()
+            Button("Delete…", role: .destructive) { deleteCandidates = ids }
+        }
     }
 
     /// Picks up a Dockerfile dropped on the sidebar's Images entry.
@@ -187,7 +208,6 @@ struct ImageDetailView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(image.reference.shortImageReference)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(role: .destructive) {
