@@ -1,0 +1,187 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:1.00000,0.02069,0.11290,1.00000",
+      "srgb:0.44361,0.06421,0.08067,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "image-name" : "Image 7.heif",
+          "name" : "Image 7",
+          "position" : {
+            "scale" : 0.6,
+            "translation-in-points" : [
+              256.125,
+              275
+            ]
+          }
+        },
+        {
+          "glass" : true,
+          "image-name" : "Image 7.heif",
+          "name" : "Image 7",
+          "position" : {
+            "scale" : 0.6,
+            "translation-in-points" : [
+              85.9140625,
+              0
+            ]
+          }
+        },
+        {
+          "glass" : true,
+          "image-name" : "Image 7.heif",
+          "name" : "Image 7",
+          "position" : {
+            "scale" : 0.6,
+            "translation-in-points" : [
+              256.125,
+              -275
+            ]
+          }
+        }
+      ],
+      "name" : "Buttons",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "fill" : "none",
+          "glass" : true,
+          "image-name" : "Image 6.heif",
+          "name" : "Image 6",
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              172.9000000000001,
+              0
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "Image 5.heif",
+          "name" : "Image 5",
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              173,
+              275
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "Image 5.heif",
+          "name" : "Image 5",
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              173,
+              -275
+            ]
+          }
+        }
+      ],
+      "name" : "Pills",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "fill" : "none",
+          "image-name" : "Image 2.heif",
+          "name" : "Image 2",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              0.6499999999999773,
+              0
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "fill" : "none",
+          "glass" : true,
+          "image-name" : "Image 2.heif",
+          "name" : "Image 2",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              0.6499999999999773,
+              275
+            ]
+          }
+        },
+        {
+          "fill" : "none",
+          "image-name" : "Image 2.heif",
+          "name" : "Image 2",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.65,
+            "translation-in-points" : [
+              0.75,
+              -275
+            ]
+          }
+        }
+      ],
+      "name" : "Containers",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
