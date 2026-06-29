@@ -3,26 +3,40 @@
 //  ContainerManager
 //
 
+import AppKit
 import ContainerResource
 import SwiftUI
 
 struct ContainersListView: View {
-    @Binding var selection: String?
+    @Binding var selection: Set<String>
     @Environment(ContainersStore.self) private var store
     @Environment(WindowRouter.self) private var router
     @State private var showCreateSheet = false
-    @State private var deleteCandidate: String?
+    @State private var deleteCandidates: Set<String> = []
+    @State private var searchText = ""
+
+    private var containers: [ContainerSnapshot] {
+        guard !searchText.isEmpty else { return store.containers }
+        return store.containers.filter {
+            $0.id.localizedCaseInsensitiveContains(searchText)
+                || $0.configuration.image.reference.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(store.containers, id: \.id) { container in
+            ForEach(containers, id: \.id) { container in
                 ContainerRow(container: container)
                     .tag(container.id)
-                    .contextMenu { rowMenu(container) }
+                    .draggable(container.id)
+                    .copyable([container.id])
             }
         }
-        .contextMenu { Button(SidebarSection.containers.newItemLabel) { showCreateSheet = true } }
+        .contextMenu(forSelectionType: String.self) { ids in
+            rowMenu(ids)
+        }
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Filter containers")
         .overlay {
             if store.containers.isEmpty {
                 ContentUnavailableView {
@@ -34,7 +48,6 @@ struct ContainersListView: View {
                 }
             }
         }
-        .navigationTitle("Containers")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -49,12 +62,15 @@ struct ContainersListView: View {
             ContainerCreateSheet()
         }
         .confirmationDialog(
-            "Delete the container “\(deleteCandidate ?? "")”?",
+            deleteCandidates.count > 1
+                ? "Delete \(deleteCandidates.count) containers?"
+                : "Delete the container “\(deleteCandidates.first ?? "")”?",
             isPresented: deleteBinding
         ) {
             Button("Delete", role: .destructive) {
-                if let id = deleteCandidate { Task { await store.delete(id: id, force: true) } }
-                deleteCandidate = nil
+                let ids = deleteCandidates
+                Task { for id in ids { await store.delete(id: id, force: true) } }
+                deleteCandidates = []
             }
         } message: {
             Text("This permanently removes the container.")
@@ -65,26 +81,35 @@ struct ContainersListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
     }
 
     private var deleteBinding: Binding<Bool> {
-        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
     @ViewBuilder
-    private func rowMenu(_ container: ContainerSnapshot) -> some View {
-        if container.status == .running {
-            Button("Stop") { Task { await store.stop(id: container.id) } }
-            Button("Open Terminal") { router.openTerminal(id: container.id, in: .containers) }
-            Button("Open in Terminal.app") { openInTerminalApp(container.id) }
+    private func rowMenu(_ ids: Set<String>) -> some View {
+        if ids.isEmpty {
+            Button(SidebarSection.containers.newItemLabel) { showCreateSheet = true }
         } else {
-            Button("Start") { Task { await store.start(id: container.id) } }
+            let running = ids.filter { store.container(withId: $0)?.status == .running }
+            if running.count < ids.count {
+                Button("Start") { Task { for id in ids { await store.start(id: id) } } }
+            }
+            if !running.isEmpty {
+                Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
+            }
+            if ids.count == 1, let id = ids.first, store.container(withId: id)?.status == .running {
+                Button("Open Terminal") { router.openTerminal(id: id, in: .containers) }
+                Button("Open in Terminal.app") { openInTerminalApp(id) }
+            }
+            Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
+            Divider()
+            Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
-        Divider()
-        Button("Delete…", role: .destructive) { deleteCandidate = container.id }
     }
 
     private func openInTerminalApp(_ id: String) {

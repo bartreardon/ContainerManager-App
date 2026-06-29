@@ -59,7 +59,6 @@ private struct VolumeDetailContent: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(volume.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(role: .destructive) {

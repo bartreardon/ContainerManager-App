@@ -3,27 +3,41 @@
 //  ContainerManager
 //
 
+import AppKit
 import ContainerResource
 import MachineAPIClient
 import SwiftUI
 
 struct MachinesListView: View {
-    @Binding var selection: String?
+    @Binding var selection: Set<String>
     @Environment(MachinesStore.self) private var store
     @Environment(WindowRouter.self) private var router
     @State private var showCreateSheet = false
-    @State private var deleteCandidate: String?
+    @State private var deleteCandidates: Set<String> = []
+    @State private var searchText = ""
+
+    private var machines: [MachineSnapshot] {
+        guard !searchText.isEmpty else { return store.machines }
+        return store.machines.filter {
+            $0.id.localizedCaseInsensitiveContains(searchText)
+                || $0.configuration.image.reference.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(store.machines, id: \.id) { machine in
+            ForEach(machines, id: \.id) { machine in
                 MachineRow(machine: machine, isDefault: machine.id == store.defaultId)
                     .tag(machine.id)
-                    .contextMenu { rowMenu(machine) }
+                    .draggable(machine.id)
+                    .copyable([machine.id])
             }
         }
-        .contextMenu { Button(SidebarSection.machines.newItemLabel) { showCreateSheet = true } }
+        .contextMenu(forSelectionType: String.self) { ids in
+            rowMenu(ids)
+        }
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Filter machines")
         .overlay {
             if store.machines.isEmpty {
                 ContentUnavailableView {
@@ -35,7 +49,6 @@ struct MachinesListView: View {
                 }
             }
         }
-        .navigationTitle("Machines")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -50,15 +63,18 @@ struct MachinesListView: View {
             MachineCreateSheet()
         }
         .confirmationDialog(
-            "Delete the machine “\(deleteCandidate ?? "")”?",
+            deleteCandidates.count > 1
+                ? "Delete \(deleteCandidates.count) machines?"
+                : "Delete the machine “\(deleteCandidates.first ?? "")”?",
             isPresented: deleteBinding
         ) {
             Button("Delete", role: .destructive) {
-                if let id = deleteCandidate { Task { await store.delete(id: id) } }
-                deleteCandidate = nil
+                let ids = deleteCandidates
+                Task { for id in ids { await store.delete(id: id) } }
+                deleteCandidates = []
             }
         } message: {
-            Text("The machine will be stopped and its disk contents permanently removed.")
+            Text("Each machine will be stopped and its disk contents permanently removed.")
         }
         .errorAlert($store.lastError)
         .onAppear(perform: consumeCreate)
@@ -66,29 +82,33 @@ struct MachinesListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
     }
 
     private var deleteBinding: Binding<Bool> {
-        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
     @ViewBuilder
-    private func rowMenu(_ machine: MachineSnapshot) -> some View {
-        if machine.status == .running {
-            Button("Stop") { Task { await store.stop(id: machine.id) } }
+    private func rowMenu(_ ids: Set<String>) -> some View {
+        if ids.isEmpty {
+            Button(SidebarSection.machines.newItemLabel) { showCreateSheet = true }
         } else {
-            Button("Start") { Task { await store.boot(id: machine.id) } }
+            Button("Start") { Task { for id in ids { await store.boot(id: id) } } }
+            Button("Stop") { Task { for id in ids { await store.stop(id: id) } } }
+            if ids.count == 1, let id = ids.first {
+                Button("Open Terminal") { router.openTerminal(id: id, in: .machines) }
+                Button("Open in Terminal.app") { openInTerminalApp(id) }
+                if store.defaultId != id {
+                    Button("Set as Default") { Task { await store.setDefault(id: id) } }
+                }
+            }
+            Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
+            Divider()
+            Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
-        Button("Open Terminal") { router.openTerminal(id: machine.id, in: .machines) }
-        Button("Open in Terminal.app") { openInTerminalApp(machine.id) }
-        if store.defaultId != machine.id {
-            Button("Set as Default") { Task { await store.setDefault(id: machine.id) } }
-        }
-        Divider()
-        Button("Delete…", role: .destructive) { deleteCandidate = machine.id }
     }
 
     private func openInTerminalApp(_ id: String) {

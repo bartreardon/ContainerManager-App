@@ -51,7 +51,6 @@ private struct MachineDetailContent: View {
             case .terminal: terminalPane
             }
         }
-        .navigationTitle(machine.id)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 startStopButton
@@ -119,6 +118,7 @@ private struct MachineDetailContent: View {
                 terminalExited = true
             }
             .id(terminalSessionId)
+            .accessibilityLabel("Terminal for \(machine.id)")
             if terminalExited {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")

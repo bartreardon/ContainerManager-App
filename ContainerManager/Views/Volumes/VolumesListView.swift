@@ -7,24 +7,32 @@ import ContainerResource
 import SwiftUI
 
 struct VolumesListView: View {
-    @Binding var selection: String?
+    @Binding var selection: Set<String>
     @Environment(VolumesStore.self) private var store
     @Environment(WindowRouter.self) private var router
     @State private var showCreateSheet = false
-    @State private var deleteCandidate: String?
+    @State private var deleteCandidates: Set<String> = []
+    @State private var searchText = ""
+
+    private var volumes: [VolumeConfiguration] {
+        guard !searchText.isEmpty else { return store.volumes }
+        return store.volumes.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    }
 
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(store.volumes, id: \.id) { volume in
+            ForEach(volumes, id: \.id) { volume in
                 VolumeRow(volume: volume, size: store.sizes[volume.name])
                     .tag(volume.id)
-                    .contextMenu {
-                        Button("Delete…", role: .destructive) { deleteCandidate = volume.id }
-                    }
+                    .draggable(volume.name)
+                    .copyable([volume.name])
             }
         }
-        .contextMenu { Button(SidebarSection.volumes.newItemLabel) { showCreateSheet = true } }
+        .contextMenu(forSelectionType: String.self) { ids in
+            rowMenu(ids)
+        }
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Filter volumes")
         .overlay {
             if store.volumes.isEmpty {
                 ContentUnavailableView {
@@ -36,7 +44,6 @@ struct VolumesListView: View {
                 }
             }
         }
-        .navigationTitle("Volumes")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -51,12 +58,15 @@ struct VolumesListView: View {
             VolumeCreateSheet()
         }
         .confirmationDialog(
-            "Delete the volume “\(deleteCandidate ?? "")”?",
+            deleteCandidates.count > 1
+                ? "Delete \(deleteCandidates.count) volumes?"
+                : "Delete the volume “\(deleteCandidates.first ?? "")”?",
             isPresented: deleteBinding
         ) {
             Button("Delete", role: .destructive) {
-                if let id = deleteCandidate { Task { await store.delete(id: id) } }
-                deleteCandidate = nil
+                let ids = deleteCandidates
+                Task { for id in ids { await store.delete(id: id) } }
+                deleteCandidates = []
             }
         } message: {
             Text("This permanently removes the stored data. Deletion only succeeds when no container is using the volume.")
@@ -67,13 +77,24 @@ struct VolumesListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
-                try? await Task.sleep(for: .seconds(10))
+                try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
     }
 
     private var deleteBinding: Binding<Bool> {
-        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+    }
+
+    @ViewBuilder
+    private func rowMenu(_ ids: Set<String>) -> some View {
+        if ids.isEmpty {
+            Button(SidebarSection.volumes.newItemLabel) { showCreateSheet = true }
+        } else {
+            Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
+            Divider()
+            Button("Delete…", role: .destructive) { deleteCandidates = ids }
+        }
     }
 
     private func consumeCreate() {

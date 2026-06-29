@@ -33,5 +33,9 @@ struct ContainerManagerApp: App {
         .commands {
             AppCommands(systemStore: systemStore)
         }
+
+        Settings {
+            SettingsView()
+        }
     }
 }

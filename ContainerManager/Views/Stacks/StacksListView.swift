@@ -7,22 +7,32 @@ import AppKit
 import SwiftUI
 
 struct StacksListView: View {
-    @Binding var selection: String?
+    @Binding var selection: Set<String>
     @Environment(StacksStore.self) private var store
     @Environment(WindowRouter.self) private var router
     @State private var presentedSheet: StackCreateKind?
-    @State private var deleteCandidate: String?
+    @State private var deleteCandidates: Set<String> = []
+    @State private var searchText = ""
+
+    private var stacks: [Stack] {
+        guard !searchText.isEmpty else { return store.stacks }
+        return store.stacks.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    }
 
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(store.stacks) { stack in
+            ForEach(stacks) { stack in
                 StackRow(stack: stack)
                     .tag(stack.name)
-                    .contextMenu { rowMenu(stack) }
+                    .draggable(stack.name)
+                    .copyable([stack.name])
             }
         }
-        .contextMenu { createMenu }
+        .contextMenu(forSelectionType: String.self) { ids in
+            rowMenu(ids)
+        }
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Filter stacks")
         .overlay {
             if store.stacks.isEmpty {
                 ContentUnavailableView {
@@ -36,7 +46,6 @@ struct StacksListView: View {
                 }
             }
         }
-        .navigationTitle("Stacks")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -58,15 +67,18 @@ struct StacksListView: View {
             }
         }
         .confirmationDialog(
-            "Delete the stack “\(deleteCandidate ?? "")”?",
+            deleteCandidates.count > 1
+                ? "Delete \(deleteCandidates.count) stacks?"
+                : "Delete the stack “\(deleteCandidates.first ?? "")”?",
             isPresented: deleteBinding
         ) {
             Button("Delete", role: .destructive) {
-                if let name = deleteCandidate { Task { await store.delete(name: name) } }
-                deleteCandidate = nil
+                let names = deleteCandidates
+                Task { for name in names { await store.delete(name: name) } }
+                deleteCandidates = []
             }
         } message: {
-            Text("Removes all of the stack's containers and its network. Data volumes are kept.")
+            Text("Removes all of the stacks' containers and networks. Data volumes are kept.")
         }
         .errorAlert($store.lastError)
         .onAppear(perform: consumeCreate)
@@ -74,28 +86,34 @@ struct StacksListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
     }
 
     private var deleteBinding: Binding<Bool> {
-        Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })
+        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
     @ViewBuilder
-    private func rowMenu(_ stack: Stack) -> some View {
-        if !stack.allRunning {
-            Button("Start") { Task { await store.start(name: stack.name) } }
+    private func rowMenu(_ ids: Set<String>) -> some View {
+        if ids.isEmpty {
+            createMenu
+        } else {
+            let stacks = ids.compactMap { store.stack(named: $0) }
+            if stacks.contains(where: { !$0.allRunning }) {
+                Button("Start") { Task { for name in ids { await store.start(name: name) } } }
+            }
+            if stacks.contains(where: { $0.anyRunning }) {
+                Button("Stop") { Task { for name in ids { await store.stop(name: name) } } }
+            }
+            if ids.count == 1, let stack = stacks.first, let url = stack.webURL {
+                Button("Open in Browser") { NSWorkspace.shared.open(url) }
+            }
+            Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
+            Divider()
+            Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
-        if stack.anyRunning {
-            Button("Stop") { Task { await store.stop(name: stack.name) } }
-        }
-        if let url = stack.webURL {
-            Button("Open in Browser") { NSWorkspace.shared.open(url) }
-        }
-        Divider()
-        Button("Delete…", role: .destructive) { deleteCandidate = stack.name }
     }
 
     private func consumeCreate() {

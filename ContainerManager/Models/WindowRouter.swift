@@ -14,18 +14,32 @@ import SwiftUI
 final class WindowRouter {
     var section: SidebarSection = .machines
 
-    var selectedStackName: String?
-    var selectedMachineId: String?
-    var selectedContainerId: String?
-    var selectedImageReference: String?
-    var selectedNetworkId: String?
-    var selectedVolumeName: String?
+    var selectedStackNames: Set<String> = []
+    var selectedMachineIds: Set<String> = []
+    var selectedContainerIds: Set<String> = []
+    var selectedImageReferences: Set<String> = []
+    var selectedNetworkIds: Set<String> = []
+    var selectedVolumeNames: Set<String> = []
 
     /// Set to request that the matching list view present its create sheet.
     var pendingCreate: SidebarSection?
     /// Set (with the section switched + item selected) to ask a detail view to open
     /// its in-app Terminal tab for this id.
     var openTerminalForId: String?
+
+    /// The single selected item in the current section, if exactly one is selected
+    /// (used for the window/tab title). Nil for zero or multiple.
+    var currentSelectionName: String? {
+        let ids: Set<String> = switch section {
+        case .stacks: selectedStackNames
+        case .machines: selectedMachineIds
+        case .containers: selectedContainerIds
+        case .images: selectedImageReferences
+        case .networks: selectedNetworkIds
+        case .volumes: selectedVolumeNames
+        }
+        return ids.count == 1 ? ids.first : nil
+    }
 
     func select(_ section: SidebarSection) {
         self.section = section
@@ -40,8 +54,8 @@ final class WindowRouter {
     func openTerminal(id: String, in section: SidebarSection) {
         self.section = section
         switch section {
-        case .machines: selectedMachineId = id
-        case .containers: selectedContainerId = id
+        case .machines: selectedMachineIds = [id]
+        case .containers: selectedContainerIds = [id]
         default: break
         }
         openTerminalForId = id
