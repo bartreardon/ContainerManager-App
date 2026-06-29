@@ -5,6 +5,8 @@
 
 A lightweight native macOS app for managing [Apple's `container`](https://github.com/apple/container) tool — Linux containers and the new **container machine** feature — without dropping to a terminal.
 
+➡️ **[Download the latest version](https://github.com/bartreardon/ContainerManager-App/releases/latest/download/ContainerManager.dmg)**
+
 ContainerManager is a SwiftUI front-end that links `container`'s own Swift client libraries and talks to its background services directly over XPC. It is not a wrapper around the CLI: lists, lifecycle actions, image pulls, networks, and volumes all go through the same client APIs the `container` command uses. (The CLI is invoked only for `system start`/`system stop`, `build`, and for opening an interactive shell in Terminal.)
 
 ## Features
