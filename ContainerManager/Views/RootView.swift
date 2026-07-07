@@ -73,6 +73,7 @@ struct RootView: View {
         .onAppear { router.section = SidebarSection(rawValue: storedSection) ?? .machines }
         .onChange(of: router.section) { storedSection = router.section.rawValue }
         .errorAlert($systemStore.lastError)
+        .task { await systemStore.autoCheckForUpdatesIfDue() }
         .task {
             while !Task.isCancelled {
                 await systemStore.refresh()

@@ -55,7 +55,11 @@ struct SystemStatusFooter: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(statusText)
                     .font(.callout)
-                if let health = systemStore.health {
+                if let update = systemStore.availableUpdate {
+                    Button("Update to \(update)…") { systemStore.promptUpdate() }
+                        .buttonStyle(.link)
+                        .font(.caption2)
+                } else if let health = systemStore.health {
                     Text("container \(health.apiServerVersion)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)

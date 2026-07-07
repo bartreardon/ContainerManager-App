@@ -36,6 +36,7 @@ struct ContainerManagerApp: App {
 
         Settings {
             SettingsView()
+                .environment(systemStore)
         }
     }
 }

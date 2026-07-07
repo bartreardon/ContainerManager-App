@@ -11,6 +11,8 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("containerBinaryPath") private var cliPath = ""
     @AppStorage("listRefreshSeconds") private var refreshSeconds = 5
+    @AppStorage(AppDefaults.updateCheckFrequencyKey) private var updateFrequency = UpdateCheckFrequency.weekly.rawValue
+    @Environment(SystemStore.self) private var systemStore
 
     var body: some View {
         Form {
@@ -46,9 +48,67 @@ struct SettingsView: View {
                     Text("30 seconds").tag(30)
                 }
             }
+
+            Section {
+                component(
+                    "ContainerManager", installed: AppUpdateChecker.installedVersion,
+                    available: systemStore.availableAppUpdate
+                ) {
+                    Button("Get Update…") { systemStore.openAppReleasePage() }
+                }
+                component(
+                    "Apple container", installed: systemStore.installedContainerVersion,
+                    available: systemStore.availableUpdate
+                ) {
+                    Button("Update…") { systemStore.promptUpdate() }
+                }
+                Picker("Check automatically", selection: $updateFrequency) {
+                    ForEach(UpdateCheckFrequency.allCases) { frequency in
+                        Text(frequency.label).tag(frequency.rawValue)
+                    }
+                }
+                HStack {
+                    Button("Check Now") {
+                        Task { await systemStore.checkForUpdates(force: true) }
+                    }
+                    Spacer()
+                    Text(lastCheckedText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Updates")
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 240)
+        .frame(width: 460, height: 400)
+    }
+
+    /// A component row: name, installed version, and either an "available" action or an
+    /// up-to-date marker.
+    @ViewBuilder
+    private func component(
+        _ name: String, installed: String?, available: String?,
+        @ViewBuilder action: () -> some View
+    ) -> some View {
+        LabeledContent(name) {
+            HStack(spacing: 8) {
+                Text(installed ?? "—")
+                    .foregroundStyle(.secondary)
+                if let available {
+                    Text("→ \(available)")
+                        .foregroundStyle(.green)
+                    action()
+                }
+            }
+        }
+    }
+
+    private var lastCheckedText: String {
+        let date = AppDefaults.lastUpdateCheck
+        guard date.timeIntervalSince1970 > 0 else { return "Not checked yet" }
+        let formatter = RelativeDateTimeFormatter()
+        return "Checked \(formatter.localizedString(for: date, relativeTo: Date()))"
     }
 
     private func chooseBinary() {

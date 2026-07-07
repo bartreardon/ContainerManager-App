@@ -28,6 +28,13 @@ struct AppCommands: Commands {
     }
 
     var body: some Commands {
+        // App ▸ Check for Updates… (below About)
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") {
+                Task { await systemStore.checkForUpdates(force: true) }
+            }
+        }
+
         // File ▸ New ▸ …  (added alongside the default "New Window")
         CommandGroup(after: .newItem) {
             Menu("New") {
