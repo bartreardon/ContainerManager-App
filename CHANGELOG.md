@@ -2,6 +2,14 @@
 
 All notable changes to ContainerManager.
 
+## 1.0.6 — 2026-06-30
+
+### New
+- **Software updates.** ContainerManager now checks GitHub for newer releases of **both itself and the Apple container tool** (previously it only flagged container installs *below* its minimum version). **Check for Updates…** in the app menu runs a check and reports a per-component summary. Settings ▸ Updates shows a **Components** panel with each piece's installed version and status, an automatic-check cadence (on launch / daily / weekly / never), and the last-checked time. A newer container release also surfaces as a passive **Update to …** badge in the sidebar. Applying a container update reuses the signed-installer flow; ContainerManager updates open the release page for download (the app doesn't self-update yet).
+
+### Fixed
+- **Container services left stopped after an update.** Updating the container tool stops services so the installer can replace files; it now restarts them afterwards only if they were running beforehand, instead of leaving them down.
+
 ## 1.0.5 — 2026-06-23
 
 A "Mac-native polish" release.

@@ -29,4 +29,10 @@ enum ContainerVersion {
         guard let v = parse(string) else { return false }
         return v >= minimum
     }
+
+    /// True when `latest` is a higher version than `current`. False if either is unparseable.
+    static func isUpdate(latest: String, over current: String) -> Bool {
+        guard let l = parse(latest), let c = parse(current) else { return false }
+        return l > c
+    }
 }

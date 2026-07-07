@@ -31,22 +31,13 @@ enum ContainerInstaller {
 
     /// Resolves the latest release and its signed `.pkg` asset.
     static func latestRelease() async throws -> Release {
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/apple/container/releases/latest")!)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("ContainerManager", forHTTPHeaderField: "User-Agent")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw InstallerError.badResponse
-        }
-
-        let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+        let release = try await GitHub.latestRelease(repo: "apple/container")
         let signed = release.assets.first { $0.name == "container-installer-signed.pkg" }
             ?? release.assets.first { $0.name.hasSuffix("installer-signed.pkg") }
-        guard let asset = signed, let url = URL(string: asset.browserDownloadURL) else {
+        guard let asset = signed else {
             throw InstallerError.noPackage
         }
-        return Release(version: release.tagName, pkgURL: url)
+        return Release(version: release.tagName, pkgURL: asset.browserDownloadURL)
     }
 
     /// Downloads the package to a temporary `.pkg` file.
@@ -66,25 +57,5 @@ enum ContainerInstaller {
     @MainActor
     static func launchInstaller(pkg: URL) {
         NSWorkspace.shared.open(pkg)
-    }
-
-    private struct GitHubRelease: Decodable {
-        let tagName: String
-        let assets: [Asset]
-
-        enum CodingKeys: String, CodingKey {
-            case tagName = "tag_name"
-            case assets
-        }
-
-        struct Asset: Decodable {
-            let name: String
-            let browserDownloadURL: String
-
-            enum CodingKeys: String, CodingKey {
-                case name
-                case browserDownloadURL = "browser_download_url"
-            }
-        }
     }
 }

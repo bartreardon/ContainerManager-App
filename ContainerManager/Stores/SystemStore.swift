@@ -3,6 +3,7 @@
 //  ContainerManager
 //
 
+import AppKit
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerPlugin
@@ -24,7 +25,22 @@ final class SystemStore {
     private(set) var busyMessage: String?
     var lastError: PresentedError?
 
+    /// Latest container release available on GitHub when it's newer than the installed
+    /// CLI; nil when up to date or unknown. Drives the passive "update available" badge.
+    private(set) var availableUpdate: String?
+    /// Latest ContainerManager release when newer than the running app; nil otherwise.
+    private(set) var availableAppUpdate: String?
+    private var appReleasePageURL: URL?
+
     private var cachedCLIVersion: String?
+    private var didAutoCheckThisLaunch = false
+
+    /// Installed container version for display, from live services or the last CLI probe.
+    var installedContainerVersion: String? {
+        if let health { return displayVersion(health.apiServerVersion) }
+        if let cachedCLIVersion { return displayVersion(cachedCLIVersion) }
+        return nil
+    }
 
     /// Fully ready to manage containers (running + base environment present).
     var isReady: Bool { status == .running }
@@ -102,6 +118,10 @@ final class SystemStore {
     /// Downloads and launches the official installer, then waits for the CLI to appear.
     func install() async {
         guard status == .notInstalled || isOutdated else { return }
+        await performInstall()
+    }
+
+    private func performInstall() async {
         status = .installing
         actionOutput = []
         busyMessage = "Finding the latest release…"
@@ -127,6 +147,138 @@ final class SystemStore {
         busyMessage = nil
         status = .unknown
         await refresh()
+    }
+
+    // MARK: Updates
+
+    /// Outcome of checking one component against its latest GitHub release.
+    private enum UpdateOutcome {
+        case upToDate(String)   // installed version
+        case available(String)  // newer version
+        case unknown(String)    // reason it couldn't be determined
+
+        var isUpdate: Bool { if case .available = self { return true }; return false }
+    }
+
+    /// Checks both ContainerManager and the container tool against their latest GitHub
+    /// releases. A manual check (`force`) reports a summary in an alert; automatic checks
+    /// just refresh the passive badges. Records the check time for the frequency throttle.
+    func checkForUpdates(force: Bool) async {
+        async let containerCheck = checkContainerUpdate()
+        async let appCheck = checkAppUpdate()
+        let (container, app) = await (containerCheck, appCheck)
+        AppDefaults.lastUpdateCheck = Date()
+        if force { presentUpdateSummary(app: app, container: container) }
+    }
+
+    private func checkContainerUpdate() async -> UpdateOutcome {
+        guard let current = await cliVersion(), ContainerVersion.parse(current) != nil else {
+            availableUpdate = nil
+            return .unknown("container isn’t installed")
+        }
+        do {
+            let release = try await ContainerInstaller.latestRelease()
+            if ContainerVersion.isUpdate(latest: release.version, over: current) {
+                let version = displayVersion(release.version)
+                availableUpdate = version
+                return .available(version)
+            }
+            availableUpdate = nil
+            return .upToDate(displayVersion(current))
+        } catch {
+            return .unknown(PresentedError.describe(error))
+        }
+    }
+
+    private func checkAppUpdate() async -> UpdateOutcome {
+        let current = AppUpdateChecker.installedVersion
+        do {
+            let release = try await AppUpdateChecker.latestRelease()
+            if ContainerVersion.isUpdate(latest: release.version, over: current) {
+                let version = displayVersion(release.version)
+                availableAppUpdate = version
+                appReleasePageURL = release.pageURL
+                return .available(version)
+            }
+            availableAppUpdate = nil
+            return .upToDate(displayVersion(current))
+        } catch {
+            return .unknown(PresentedError.describe(error))
+        }
+    }
+
+    /// Runs one automatic check per launch if the configured frequency says one is due.
+    func autoCheckForUpdatesIfDue() async {
+        guard !didAutoCheckThisLaunch else { return }
+        didAutoCheckThisLaunch = true
+        guard AppDefaults.isUpdateCheckDue else { return }
+        await checkForUpdates(force: false)
+    }
+
+    /// Offers to update to the already-detected available container release (badge/Settings).
+    func promptUpdate() {
+        guard let availableUpdate else { return }
+        let alert = NSAlert()
+        alert.messageText = "Update Available"
+        alert.informativeText = "container \(availableUpdate) is available. Update now?"
+        alert.addButton(withTitle: "Update…")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await applyUpdate() }
+        }
+    }
+
+    /// Opens the ContainerManager release page for a manual download (no self-update).
+    func openAppReleasePage() {
+        NSWorkspace.shared.open(appReleasePageURL ?? AppUpdateChecker.releasesPage)
+    }
+
+    /// Applies a container update by reinstalling the latest release. Stops services so the
+    /// installer can replace files cleanly, then — the farmer's-gate rule — restarts them
+    /// afterwards only if they were running before the update.
+    func applyUpdate() async {
+        let wasRunning = status == .running || status == .baseEnvMissing
+        if wasRunning {
+            _ = try? await CLIRunner.run(["system", "stop"])
+            health = nil
+        }
+        availableUpdate = nil
+        await performInstall()
+        if wasRunning {
+            await performStart(stopFirst: false)
+        }
+    }
+
+    private func presentUpdateSummary(app: UpdateOutcome, container: UpdateOutcome) {
+        let alert = NSAlert()
+        alert.messageText = "Software Update"
+        alert.informativeText = """
+            ContainerManager — \(summaryLine(app))
+            Apple container — \(summaryLine(container))
+            """
+
+        if container.isUpdate { alert.addButton(withTitle: "Update container…") }
+        if app.isUpdate { alert.addButton(withTitle: "Get ContainerManager…") }
+        alert.addButton(withTitle: (app.isUpdate || container.isUpdate) ? "Later" : "OK")
+
+        // Buttons are added in the order above; map the response to the matching action.
+        var index = NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        let response = alert.runModal().rawValue
+        if container.isUpdate {
+            if response == index { Task { await applyUpdate() }; return }
+            index += 1
+        }
+        if app.isUpdate, response == index {
+            openAppReleasePage()
+        }
+    }
+
+    private func summaryLine(_ outcome: UpdateOutcome) -> String {
+        switch outcome {
+        case .upToDate(let version): "\(version) (up to date)"
+        case .available(let version): "\(version) available"
+        case .unknown(let reason): "couldn’t check — \(reason)"
+        }
     }
 
     // MARK: Helpers
