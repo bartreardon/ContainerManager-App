@@ -5,6 +5,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A create sheet driven by a `StackTemplateDef`: renders the template's fields,
 /// builds a `StackSpec`, and runs the orchestrator with a shared progress/log view.
@@ -60,6 +61,10 @@ struct TemplateStackSheet: View {
             Divider()
 
             HStack {
+                if template.document != nil {
+                    Button("Export…") { exportDefinition() }
+                        .help("Save this stack definition as a .containerstack file to share or customise")
+                }
                 Spacer()
                 Button(finished ? "Done" : "Cancel") { dismiss() }
                 if !finished {
@@ -94,6 +99,21 @@ struct TemplateStackSheet: View {
                     Button("Choose…") { chooseFolder(into: field.key) }
                 }
             }
+        }
+    }
+
+    /// Saves the template's declarative definition for sharing or hand-editing.
+    private func exportDefinition() {
+        guard let document = template.document else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.containerstack]
+        panel.nameFieldStringValue = "\(document.id).containerstack"
+        panel.message = "Export this stack definition"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try document.encoded().write(to: url, options: .atomic)
+        } catch {
+            self.error = PresentedError(title: "Export failed", error: error)
         }
     }
 

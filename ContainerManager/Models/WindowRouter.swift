@@ -23,6 +23,8 @@ final class WindowRouter {
 
     /// Set to request that the matching list view present its create sheet.
     var pendingCreate: SidebarSection?
+    /// A stack-definition file opened from Finder, waiting for StacksListView to import.
+    var pendingStackImport: URL?
     /// Set (with the section switched + item selected) to ask a detail view to open
     /// its in-app Terminal tab for this id.
     var openTerminalForId: String?

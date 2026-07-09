@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "gitea",
+  "name": "Gitea (Git server)",
+  "summary": "A self-hosted Git service — single container on SQLite, with a web UI and git-over-SSH, on a persistent volume.",
+  "systemImage": "arrow.triangle.branch",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "gitea", "default": "gitea"},
+    {"key": "webPort", "label": "Web port", "placeholder": "3000", "default": "3000", "kind": "port"},
+    {"key": "sshPort", "label": "SSH port", "placeholder": "2222", "default": "2222", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "gitea",
+      "displayName": "Gitea",
+      "image": "gitea/gitea:latest",
+      "env": ["USER_UID=1000", "USER_GID=1000"],
+      "volumes": ["${name}-data:/data"],
+      "publishPorts": ["${webPort}:3000", "${sshPort}:22"]
+    }
+  ],
+  "web": {"serviceKey": "gitea", "portField": "webPort"}
+}

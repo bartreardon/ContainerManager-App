@@ -6,6 +6,10 @@ All notable changes to ContainerManager.
 
 ### New
 - **Software updates.** ContainerManager now checks GitHub for newer releases of **both itself and the Apple container tool** (previously it only flagged container installs *below* its minimum version). **Check for Updates…** in the app menu runs a check and reports a per-component summary. Settings ▸ Updates shows a **Components** panel with each piece's installed version and status, an automatic-check cadence (on launch / daily / weekly / never), and the last-checked time. A newer container release also surfaces as a passive **Update to …** badge in the sidebar. Applying a container update reuses the signed-installer flow; ContainerManager updates open the release page for download (the app doesn't self-update yet).
+- **Stack definitions are now files.** Templates are declarative JSON documents (`.containerstack`) instead of code — see the [stack definitions guide](docs/stack-definitions.md):
+  - **Import**: New Stack ▸ **Import Template…** (or double-click a `.containerstack` in Finder). Imported templates join the New Stack menu, stored in `Application Support/ContainerManager/StackTemplates` (New Stack ▸ **Show Templates Folder** to hand-manage them).
+  - **Export**: every template's create sheet has **Export…** — including the built-ins, which now ship in the same format and double as documented examples.
+  - **docker-compose import**: choosing a `compose.yml` converts a practical subset (image, environment, short- and long-form ports/volumes, depends_on ordering; service-name references become `${IP:…}` tokens). Services that can't be represented (e.g. `build:`) are skipped rather than failing the whole file, and everything that didn't carry over is summarised in an "Imported with caveats" alert.
 
 ### Fixed
 - **Container services left stopped after an update.** Updating the container tool stops services so the installer can replace files; it now restarts them afterwards only if they were running beforehand, instead of leaving them down.

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "nginx-static",
+  "name": "Nginx + host folder",
+  "summary": "Serve a folder from your Mac as a static site — edit on the host, refresh the browser.",
+  "systemImage": "doc.richtext",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "site", "default": "site"},
+    {"key": "folder", "label": "Folder to serve", "placeholder": "Choose a folder…", "kind": "directory"},
+    {"key": "port", "label": "Web port", "placeholder": "8080", "default": "8080", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "web",
+      "displayName": "Nginx",
+      "image": "nginx:alpine",
+      "volumes": ["${folder}:/usr/share/nginx/html:ro"],
+      "publishPorts": ["${port}:80"]
+    }
+  ],
+  "web": {"serviceKey": "web", "portField": "port"}
+}
