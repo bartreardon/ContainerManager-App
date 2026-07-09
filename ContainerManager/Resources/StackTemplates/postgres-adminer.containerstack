@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "id": "postgres-adminer",
+  "name": "PostgreSQL + Adminer",
+  "summary": "A PostgreSQL database plus Adminer, a web UI to browse and query it.",
+  "systemImage": "tablecells",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "pgstack", "default": "pgstack"},
+    {"key": "password", "label": "Database password", "default": "postgres", "kind": "password"},
+    {"key": "database", "label": "Database name", "placeholder": "app", "default": "app"},
+    {"key": "port", "label": "Adminer web port", "placeholder": "8080", "default": "8080", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "db",
+      "displayName": "PostgreSQL",
+      "image": "postgres:17",
+      "env": [
+        "POSTGRES_PASSWORD=${password}",
+        "POSTGRES_DB=${database}"
+      ],
+      "volumes": ["${name}-pgdata:/var/lib/postgresql/data"]
+    },
+    {
+      "key": "web",
+      "displayName": "Adminer",
+      "image": "adminer:latest",
+      "env": ["ADMINER_DEFAULT_SERVER=${IP:db}"],
+      "publishPorts": ["${port}:8080"]
+    }
+  ],
+  "web": {"serviceKey": "web", "portField": "port"}
+}

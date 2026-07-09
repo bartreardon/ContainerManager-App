@@ -5,6 +5,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct StacksListView: View {
     @Binding var selection: Set<String>
@@ -58,10 +59,8 @@ struct StacksListView: View {
         }
         .sheet(item: $presentedSheet) { kind in
             switch kind {
-            case .template(let id):
-                if let template = StackTemplates.all.first(where: { $0.id == id }) {
-                    TemplateStackSheet(template: template)
-                }
+            case .template(let template):
+                TemplateStackSheet(template: template)
             case .custom:
                 CustomStackSheet()
             }
@@ -83,6 +82,8 @@ struct StacksListView: View {
         .errorAlert($store.lastError)
         .onAppear(perform: consumeCreate)
         .onChange(of: router.pendingCreate) { consumeCreate() }
+        .onAppear(perform: consumeImport)
+        .onChange(of: router.pendingStackImport) { consumeImport() }
         .task {
             while !Task.isCancelled {
                 await store.refresh()
@@ -123,13 +124,28 @@ struct StacksListView: View {
         }
     }
 
+    /// Imports a definition file opened from Finder (routed via `onOpenURL`).
+    private func consumeImport() {
+        guard let url = router.pendingStackImport else { return }
+        router.pendingStackImport = nil
+        do {
+            present(try StackTemplateLibrary.importFile(at: url))
+        } catch {
+            store.lastError = PresentedError(title: "Couldn’t import stack definition", error: error)
+        }
+    }
+
     @ViewBuilder
     private var createMenu: some View {
         ForEach(StackTemplates.all) { template in
-            Button {
-                presentedSheet = .template(template.id)
-            } label: {
-                Label(template.name, systemImage: template.systemImage)
+            templateButton(template)
+        }
+        // Re-read on every menu open so edits in the Finder folder show immediately.
+        let imported = StackTemplateLibrary.list()
+        if !imported.isEmpty {
+            Divider()
+            ForEach(imported) { template in
+                templateButton(template)
             }
         }
         Divider()
@@ -138,15 +154,54 @@ struct StacksListView: View {
         } label: {
             Label("Custom Stack…", systemImage: "slider.horizontal.3")
         }
+        Divider()
+        Button("Import Template…") { importTemplate() }
+        Button("Show Templates Folder") { StackTemplateLibrary.reveal() }
+    }
+
+    private func templateButton(_ template: StackTemplateDef) -> some View {
+        Button {
+            presentedSheet = .template(template)
+        } label: {
+            Label(template.name, systemImage: template.systemImage)
+        }
+    }
+
+    /// Imports a stack definition (native `.containerstack`/JSON, or a docker-compose
+    /// YAML converted on the way in) and opens its create sheet.
+    private func importTemplate() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.containerstack, .json, .yaml]
+        panel.message = "Choose a stack definition (.containerstack) or a docker-compose file"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            present(try StackTemplateLibrary.importFile(at: url))
+        } catch {
+            store.lastError = PresentedError(title: "Couldn’t import stack definition", error: error)
+        }
+    }
+
+    /// Opens the imported template's create sheet, first surfacing any compose-import
+    /// caveats (what didn't carry over) in an app-modal alert.
+    private func present(_ template: StackTemplateDef) {
+        if let document = template.document, let caveats = ComposeImporter.caveats(in: document) {
+            let alert = NSAlert()
+            alert.messageText = "Imported with caveats"
+            alert.informativeText = caveats
+            alert.runModal()
+        }
+        presentedSheet = .template(template)
     }
 }
 
 enum StackCreateKind: Identifiable {
-    case template(String)
+    case template(StackTemplateDef)
     case custom
     var id: String {
         switch self {
-        case .template(let id): id
+        case .template(let template): template.id
         case .custom: "custom"
         }
     }

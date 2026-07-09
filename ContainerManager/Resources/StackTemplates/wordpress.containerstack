@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "wordpress",
+  "name": "WordPress + MariaDB",
+  "summary": "A WordPress site backed by a MariaDB database, each on a persistent volume.",
+  "systemImage": "globe",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "mysite", "default": "mysite"},
+    {"key": "password", "label": "Database password", "default": "wordpress", "kind": "password"},
+    {"key": "port", "label": "Web port", "placeholder": "8080", "default": "8080", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "db",
+      "displayName": "MariaDB",
+      "image": "mariadb:11",
+      "env": [
+        "MARIADB_ROOT_PASSWORD=${password}",
+        "MARIADB_DATABASE=wordpress",
+        "MARIADB_USER=wordpress",
+        "MARIADB_PASSWORD=${password}"
+      ],
+      "volumes": ["${name}-dbdata:/var/lib/mysql"]
+    },
+    {
+      "key": "web",
+      "displayName": "WordPress",
+      "image": "wordpress:latest",
+      "env": [
+        "WORDPRESS_DB_HOST=${IP:db}:3306",
+        "WORDPRESS_DB_USER=wordpress",
+        "WORDPRESS_DB_PASSWORD=${password}",
+        "WORDPRESS_DB_NAME=wordpress"
+      ],
+      "volumes": ["${name}-wpdata:/var/www/html"],
+      "publishPorts": ["${port}:80"]
+    }
+  ],
+  "web": {"serviceKey": "web", "portField": "port"}
+}

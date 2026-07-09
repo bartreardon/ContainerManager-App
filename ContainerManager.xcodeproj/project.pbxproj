@@ -14,6 +14,7 @@
 		AC0000000000000000000005 /* ContainerPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000105 /* ContainerPlugin */; };
 		AC0000000000000000000006 /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000106 /* TerminalProgress */; };
 		AC0000000000000000000007 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000107 /* SwiftTerm */; };
+		CC04E0372FFFA770009272FC /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000108 /* Yams */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +34,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CC04E0372FFFA770009272FC /* Yams in Frameworks */,
 				AC0000000000000000000001 /* MachineAPIClient in Frameworks */,
 				AC0000000000000000000002 /* ContainerAPIClient in Frameworks */,
 				AC0000000000000000000003 /* ContainerResource in Frameworks */,
@@ -89,6 +91,7 @@
 				AC0000000000000000000105 /* ContainerPlugin */,
 				AC0000000000000000000106 /* TerminalProgress */,
 				AC0000000000000000000107 /* SwiftTerm */,
+				AC0000000000000000000108 /* Yams */,
 			);
 			productName = ContainerManager;
 			productReference = CCCB1D172FDC34A50080B7ED /* ContainerManager.app */;
@@ -121,6 +124,7 @@
 			packageReferences = (
 				AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */,
 				AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				AC0000000000000000000203 /* XCRemoteSwiftPackageReference "Yams" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CCCB1D182FDC34A50080B7ED /* Products */;
@@ -288,6 +292,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Container Manager";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "ContainerManager opens a shell to your container machine in Terminal.";
@@ -325,6 +330,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Container Manager";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "ContainerManager opens a shell to your container machine in Terminal.";
@@ -387,6 +393,14 @@
 				minimumVersion = 1.13.0;
 			};
 		};
+		AC0000000000000000000203 /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.2.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -424,6 +438,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		AC0000000000000000000108 /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000203 /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

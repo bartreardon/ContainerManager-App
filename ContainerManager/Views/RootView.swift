@@ -71,6 +71,12 @@ struct RootView: View {
         .environment(router)
         .focusedSceneValue(\.windowRouter, router)
         .onAppear { router.section = SidebarSection(rawValue: storedSection) ?? .machines }
+        .onOpenURL { url in
+            // A .containerstack double-clicked/opened from Finder → import as a stack template.
+            guard url.isFileURL else { return }
+            router.section = .stacks
+            router.pendingStackImport = url
+        }
         .onChange(of: router.section) { storedSection = router.section.rawValue }
         .errorAlert($systemStore.lastError)
         .task { await systemStore.autoCheckForUpdatesIfDue() }

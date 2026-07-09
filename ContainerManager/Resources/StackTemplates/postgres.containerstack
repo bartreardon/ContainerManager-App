@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "postgres",
+  "name": "PostgreSQL",
+  "summary": "A standalone PostgreSQL database on a persistent volume, published for apps to connect to.",
+  "systemImage": "cylinder.split.1x2",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "postgres", "default": "postgres"},
+    {"key": "password", "label": "Password", "default": "postgres", "kind": "password"},
+    {"key": "database", "label": "Database name", "placeholder": "app", "default": "app"},
+    {"key": "port", "label": "Port", "placeholder": "5432", "default": "5432", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "db",
+      "displayName": "PostgreSQL",
+      "image": "postgres:17",
+      "env": [
+        "POSTGRES_PASSWORD=${password}",
+        "POSTGRES_DB=${database}"
+      ],
+      "volumes": ["${name}-pgdata:/var/lib/postgresql/data"],
+      "publishPorts": ["${port}:5432"]
+    }
+  ]
+}

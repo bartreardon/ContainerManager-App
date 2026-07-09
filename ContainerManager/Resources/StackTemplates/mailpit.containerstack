@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "mailpit",
+  "name": "Mailpit (email testing)",
+  "summary": "A local SMTP server with a web inbox: send mail to the SMTP port, read it in the browser.",
+  "systemImage": "envelope",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "mailpit", "default": "mailpit"},
+    {"key": "webPort", "label": "Web inbox port", "placeholder": "8025", "default": "8025", "kind": "port"},
+    {"key": "smtpPort", "label": "SMTP port", "placeholder": "1025", "default": "1025", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "mailpit",
+      "displayName": "Mailpit",
+      "image": "axllent/mailpit:latest",
+      "env": ["MP_DATA_FILE=/data/mailpit.db"],
+      "volumes": ["${name}-data:/data"],
+      "publishPorts": ["${webPort}:8025", "${smtpPort}:1025"]
+    }
+  ],
+  "web": {"serviceKey": "mailpit", "portField": "webPort"}
+}

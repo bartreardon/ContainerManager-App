@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "id": "code-server",
+  "name": "code-server (VS Code)",
+  "summary": "VS Code in your browser with a persistent workspace. Sign in with the password below.",
+  "systemImage": "chevron.left.forwardslash.chevron.right",
+  "notes": "Uses the linuxserver image (not codercom): it starts as root, chowns /config to PUID:PGID, then drops privileges — so a fresh (root-owned) volume is usable, unlike codercom which runs non-root and can't write to it.",
+  "fields": [
+    {"key": "name", "label": "Stack name", "placeholder": "code-server", "default": "code-server"},
+    {"key": "password", "label": "Password", "default": "changeme", "kind": "password"},
+    {"key": "port", "label": "Web port", "placeholder": "8443", "default": "8443", "kind": "port"}
+  ],
+  "services": [
+    {
+      "key": "web",
+      "displayName": "code-server",
+      "image": "linuxserver/code-server:latest",
+      "env": [
+        "PASSWORD=${password}",
+        "PUID=1000",
+        "PGID=1000",
+        "TZ=Etc/UTC",
+        "DEFAULT_WORKSPACE=/config/workspace"
+      ],
+      "volumes": ["${name}-config:/config"],
+      "publishPorts": ["${port}:8443"]
+    }
+  ],
+  "web": {"serviceKey": "web", "portField": "port"}
+}
