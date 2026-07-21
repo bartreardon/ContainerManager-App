@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("containerBinaryPath") private var cliPath = ""
     @AppStorage("listRefreshSeconds") private var refreshSeconds = 5
     @AppStorage(AppDefaults.updateCheckFrequencyKey) private var updateFrequency = UpdateCheckFrequency.weekly.rawValue
+    @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @Environment(SystemStore.self) private var systemStore
 
     var body: some View {
@@ -50,6 +51,17 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
+                    .onChange(of: showMenuBarIcon) { DockIcon.update() }
+            } header: {
+                Text("Menu Bar")
+            } footer: {
+                Text("The menu bar icon shows subsystem status and quick access to running machines and stack web UIs. ContainerManager keeps running there after you close the window, and the Dock icon hides until you open a window again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 component(
                     "ContainerManager", installed: AppUpdateChecker.installedVersion,
                     available: systemStore.availableAppUpdate
@@ -81,7 +93,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 400)
+        .frame(width: 460, height: 520)
     }
 
     /// A component row: name, installed version, and either an "available" action or an

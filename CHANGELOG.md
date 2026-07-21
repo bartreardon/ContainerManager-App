@@ -2,6 +2,12 @@
 
 All notable changes to ContainerManager.
 
+## 1.0.7 — 2026-07-21
+
+### New
+- **Menu bar item.** ContainerManager now lives in the menu bar: the icon reflects whether the container subsystem is running, and its menu gives quick access to **running machines** (Open Terminal, Copy IP) and **stack web UIs**, plus Start/Stop services and Open/Quit. A web UI that's running opens in the browser; one that's stopped starts the stack instead. ContainerManager keeps running in the menu bar after you close the window, and the **Dock icon hides while no window is open** and returns when you open one. "Open Container Manager" reuses the existing window rather than opening another. Settings ▸ Menu Bar toggles the icon.
+- **Custom stack name & icon.** A stack's detail view now has an **Appearance** section to give it a friendly name and pick an icon (from a set of SF Symbols). These show in the Stacks list, the window title, and the menu bar.
+
 ## 1.0.6 — 2026-06-30
 
 ### New

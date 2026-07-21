@@ -13,7 +13,10 @@ struct StackDetailView: View {
 
     var body: some View {
         if let stackName, let stack = store.stack(named: stackName) {
+            // Tie identity to the stack so switching selection rebuilds the view with
+            // fresh editing state (the name/icon @State is seeded once, in init).
             StackDetailContent(stack: stack)
+                .id(stack.name)
         } else {
             ContentUnavailableView("Select a Stack", systemImage: "square.stack.3d.up")
         }
@@ -24,13 +27,64 @@ private struct StackDetailContent: View {
     let stack: Stack
     @Environment(StacksStore.self) private var store
     @State private var showDeleteConfirmation = false
+    @State private var showIconPicker = false
+    @State private var displayName: String
+    @State private var icon: String
+
+    init(stack: Stack) {
+        self.stack = stack
+        _displayName = State(initialValue: stack.displayName == stack.name ? "" : stack.displayName)
+        _icon = State(initialValue: stack.icon)
+    }
 
     private var isBusy: Bool {
         store.isBusy(stack.name)
     }
 
+    private func save() {
+        StackMetadata.set(stack.name, displayName: displayName, icon: icon)
+        Task { await store.refresh() }
+    }
+
     var body: some View {
         Form {
+            Section("Appearance") {
+                HStack(spacing: 8) {
+                    Button {
+                        showIconPicker.toggle()
+                    } label: {
+                        Image(systemName: icon)
+                            .frame(width: 20, height: 20)
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Choose an icon")
+                    .popover(isPresented: $showIconPicker, arrowEdge: .bottom) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 34), spacing: 6)], spacing: 6) {
+                            ForEach(StackIcons.all, id: \.self) { symbol in
+                                Button {
+                                    icon = symbol
+                                    save()
+                                    showIconPicker = false
+                                } label: {
+                                    Image(systemName: symbol)
+                                        .frame(width: 28, height: 28)
+                                        .background(
+                                            icon == symbol ? Color.accentColor.opacity(0.25) : .clear,
+                                            in: RoundedRectangle(cornerRadius: 6)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .help(symbol)
+                            }
+                        }
+                        .padding(10)
+                        .frame(width: 264)
+                    }
+
+                    TextField("Name", text: $displayName, prompt: Text(stack.name))
+                        .onSubmit(save)
+                }
+            }
             if let url = stack.webURL {
                 Section("Web") {
                     LabeledContent("Address") {
@@ -99,7 +153,7 @@ private struct StackDetailContent: View {
             }
         }
         .confirmationDialog(
-            "Delete the stack “\(stack.name)”?",
+            "Delete the stack “\(stack.displayName)”?",
             isPresented: $showDeleteConfirmation
         ) {
             Button("Delete", role: .destructive) {

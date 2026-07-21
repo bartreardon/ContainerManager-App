@@ -50,10 +50,10 @@ struct SystemStatusFooter: View {
     var body: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(statusColor)
+                .fill(systemStore.status.tint)
                 .frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
-                Text(statusText)
+                Text(systemStore.status.label)
                     .font(.callout)
                 if let update = systemStore.availableUpdate {
                     Button("Update to \(update)…") { systemStore.promptUpdate() }
@@ -86,28 +86,5 @@ struct SystemStatusFooter: View {
             }
         }
         .padding(10)
-    }
-
-    private var statusColor: Color {
-        switch systemStore.status {
-        case .running: .green
-        case .starting, .stopping, .installing: .orange
-        case .outdated, .baseEnvMissing: .yellow
-        case .stopped, .notInstalled, .unknown: .secondary.opacity(0.5)
-        }
-    }
-
-    private var statusText: String {
-        switch systemStore.status {
-        case .running: "Running"
-        case .starting: "Starting…"
-        case .stopping: "Stopping…"
-        case .installing: "Installing…"
-        case .stopped: "Stopped"
-        case .notInstalled: "Not installed"
-        case .outdated: "Update required"
-        case .baseEnvMissing: "Setup incomplete"
-        case .unknown: "Checking…"
-        }
     }
 }
