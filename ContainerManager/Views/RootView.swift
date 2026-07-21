@@ -7,12 +7,17 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(SystemStore.self) private var systemStore
+    @Environment(StacksStore.self) private var stacksStore
     @State private var router = WindowRouter()
     @SceneStorage("selectedSection") private var storedSection = SidebarSection.machines.rawValue
 
     private var windowTitle: String {
         guard let name = router.currentSelectionName else { return router.section.rawValue }
-        let shown = router.section == .images ? name.shortImageReference : name
+        let shown: String = switch router.section {
+        case .images: name.shortImageReference
+        case .stacks: stacksStore.stack(named: name)?.displayName ?? name
+        default: name
+        }
         return "\(router.section.rawValue) — \(shown)"
     }
 

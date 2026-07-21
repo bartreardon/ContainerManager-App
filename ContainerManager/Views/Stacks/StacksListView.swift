@@ -215,8 +215,11 @@ struct StackRow: View {
             Circle()
                 .fill(stack.allRunning ? .green : (stack.anyRunning ? .orange : .secondary.opacity(0.5)))
                 .frame(width: 9, height: 9)
+            Image(systemName: stack.icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
             VStack(alignment: .leading, spacing: 2) {
-                Text(stack.name)
+                Text(stack.displayName)
                     .fontWeight(.medium)
                 Text("\(stack.runningCount)/\(stack.services.count) running")
                     .font(.caption)

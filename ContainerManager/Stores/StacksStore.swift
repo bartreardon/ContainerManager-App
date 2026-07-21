@@ -12,6 +12,9 @@ import Observation
 struct Stack: Identifiable {
     let name: String
     let services: [ContainerSnapshot]
+    /// User-facing name (custom, or the internal name) and icon; see `StackMetadata`.
+    var displayName: String
+    var icon: String
 
     var id: String { name }
 
@@ -61,8 +64,16 @@ final class StacksStore {
                 groups[name, default: []].append(container)
             }
             stacks = groups
-                .map { Stack(name: $0.key, services: $0.value.sorted { $0.id < $1.id }) }
-                .sorted { $0.name < $1.name }
+                .map { name, services in
+                    let meta = StackMetadata.get(name)
+                    return Stack(
+                        name: name,
+                        services: services.sorted { $0.id < $1.id },
+                        displayName: meta.displayName ?? name,
+                        icon: meta.icon ?? StackIcons.default
+                    )
+                }
+                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
         } catch {
             lastError = PresentedError(title: "Failed to load stacks", error: error)
         }
