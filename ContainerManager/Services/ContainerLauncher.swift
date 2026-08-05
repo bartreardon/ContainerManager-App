@@ -39,13 +39,14 @@ enum ContainerLauncher {
         management.volumes = spec.volumes
         management.labels = spec.labels
         management.remove = spec.autoRemove
+        // Takes precedence over --os/--arch; lets an amd64-only image run under emulation.
+        management.platform = spec.platform
 
         var processFlags = try Flags.Process.parse([])
         processFlags.env = spec.env
 
-        let arguments = spec.command
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
+        // Quote-aware so `sh -c "a && b"` stays three arguments.
+        let arguments = ShellWords.split(spec.command)
 
         let configuration: ContainerConfiguration
         let kernel: Kernel

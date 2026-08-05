@@ -26,6 +26,8 @@ struct BuildImageSheet: View {
     @State private var tag = ""
     @State private var dockerfile: String
     @State private var savedBuilds: [String] = []
+    @State private var useEnv = false
+    @State private var envText = ""
 
     /// `initialDockerfile` seeds the editor (e.g. from an imported/dropped file);
     /// nil starts from a minimal template.
@@ -102,6 +104,38 @@ struct BuildImageSheet: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Load a Dockerfile from disk into the editor")
+                    }
+                }
+
+                Section {
+                    Toggle("Set environment variables", isOn: $useEnv)
+                    if useEnv {
+                        TextEditor(text: $envText)
+                            .font(.body.monospaced())
+                            .frame(minHeight: 70)
+                    }
+                } header: {
+                    HStack {
+                        Text("Environment")
+                        Spacer()
+                        if useEnv {
+                            Button {
+                                importEnv()
+                            } label: {
+                                Label("Import from File…", systemImage: "square.and.arrow.down")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Load a .env file (KEY=value per line)")
+                        }
+                    }
+                } footer: {
+                    if useEnv {
+                        Text(
+                            "One KEY=value per line. Passed as build arguments (for matching ARG lines) and baked into the image as ENV defaults, so containers run from it inherit them."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
 
@@ -203,27 +237,64 @@ struct BuildImageSheet: View {
         }
     }
 
+    /// Loads a `.env` file into the environment field.
+    private func importEnv() {
+        do {
+            guard let text = try EnvFile.pick() else { return }
+            envText = text
+            error = nil
+        } catch {
+            self.error = PresentedError(title: "Couldn't read file", error: error)
+        }
+    }
+
     private func load(_ saved: String) {
         name = saved
         tag = ""
         dockerfile = BuildLibrary.loadDockerfile(saved)
+        envText = BuildLibrary.loadEnv(saved)
+        useEnv = !envText.isEmpty
         built = false
         builtTag = nil
         error = nil
         session.log = []
     }
 
+    /// A compose file pasted into the Dockerfile editor is a common mix-up, and
+    /// `container build` only reports it as "unknown instruction: services:".
+    private var looksLikeCompose: Bool {
+        let lines = dockerfile.split(whereSeparator: \.isNewline).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+        let hasComposeKeys = lines.contains { $0 == "services:" || $0.hasPrefix("services:") }
+        let hasInstructions = lines.contains {
+            let upper = $0.uppercased()
+            return upper.hasPrefix("FROM ") || upper.hasPrefix("ARG ")
+        }
+        return hasComposeKeys && !hasInstructions
+    }
+
     private func build() async {
+        guard !looksLikeCompose else {
+            error = PresentedError(
+                title: "That looks like a docker-compose file",
+                message:
+                    "This editor takes a Dockerfile (FROM, RUN, COPY…). To turn a compose file into a running stack, use Stacks ▸ New Stack ▸ Import Template… instead."
+            )
+            return
+        }
         let buildName = sanitizedName
         error = nil
         built = false
         session.log = []
         session.isBuilding = true
         let useTag = effectiveTag
+        let env = useEnv ? EnvFile.parse(envText) : []
         do {
             try BuildLibrary.saveDockerfile(buildName, contents: dockerfile)
+            try BuildLibrary.saveEnv(buildName, contents: useEnv ? envText : "")
             name = buildName  // reflect the sanitized folder name back to the field
-            try await ImageBuilder.build(name: buildName, tag: useTag) { line in
+            try await ImageBuilder.build(name: buildName, tag: useTag, env: env) { line in
                 session.log.append(line)
             }
             builtTag = useTag

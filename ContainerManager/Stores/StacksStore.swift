@@ -39,6 +39,33 @@ struct Stack: Identifiable {
 
     /// The dedicated network created for this stack (by convention).
     var networkName: String { "\(name)-net" }
+
+    /// Named volumes this stack's services mount, and where each is mounted. Stacks are
+    /// grouped by label at runtime, so this is the only place the association is visible.
+    var volumes: [StackVolume] {
+        var mountsByVolume: [String: [String]] = [:]
+        for service in services {
+            let role = service.configuration.labels[StackLabels.role] ?? service.id
+            for mount in service.configuration.mounts {
+                guard let name = mount.volumeName else { continue }
+                let readOnly = mount.options.readonly ? " (read-only)" : ""
+                mountsByVolume[name, default: []].append("\(role) → \(mount.destination)\(readOnly)")
+            }
+        }
+        return
+            mountsByVolume
+            .map { StackVolume(name: $0.key, mounts: $0.value.sorted()) }
+            .sorted { $0.name < $1.name }
+    }
+}
+
+/// A named volume used by a stack, with the services that mount it.
+struct StackVolume: Identifiable {
+    let name: String
+    /// "role → /path" entries, one per mount.
+    let mounts: [String]
+
+    var id: String { name }
 }
 
 @Observable
@@ -100,6 +127,60 @@ final class StacksStore {
             for service in stack.services where service.status == .running {
                 try await client.stop(id: service.id)
             }
+        }
+    }
+
+    /// Adds a service to an existing stack — or replaces one, which is how a service
+    /// that failed to create (or needs different settings) gets repaired. The stack's
+    /// labels and network are applied so the new container joins the group.
+    func addService(
+        to stackName: String,
+        service: StackServiceSpec,
+        replacing: ContainerSnapshot?,
+        progress: GuiProgress
+    ) async throws {
+        try await StackOrchestrator.ensureNetwork(named: "\(stackName)-net")
+
+        var labels = [
+            "\(StackLabels.stack)=\(stackName)",
+            "\(StackLabels.role)=\(service.key)",
+        ]
+        // Keep the web-URL label so "Open in Browser" survives a replacement.
+        if let existing = replacing?.configuration.labels[StackLabels.url] {
+            labels.append("\(StackLabels.url)=\(existing)")
+        }
+
+        if let replacing {
+            let client = ContainerClient()
+            try? await client.stop(id: replacing.id)
+            try? await client.delete(id: replacing.id, force: true)
+        }
+
+        let spec = ContainerCreateSpec(
+            name: "\(stackName)-\(service.key)",
+            image: service.image,
+            command: service.command,
+            env: service.env,
+            cpus: nil,
+            memory: nil,
+            network: "\(stackName)-net",
+            publishPorts: service.publishPorts,
+            volumes: service.volumes,
+            labels: labels,
+            platform: service.platform,
+            autoRemove: false,
+            startAfterCreate: false
+        )
+        try await ContainerLauncher.create(spec: spec, progress: progress, start: true)
+        await refresh()
+    }
+
+    /// Removes a single service's container, leaving the rest of the stack in place.
+    func removeService(id: String, from stackName: String) async {
+        await perform(name: stackName, title: "Failed to remove service") {
+            let client = ContainerClient()
+            try? await client.stop(id: id)
+            try await client.delete(id: id, force: true)
         }
     }
 

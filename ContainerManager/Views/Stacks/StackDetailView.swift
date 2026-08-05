@@ -23,11 +23,25 @@ struct StackDetailView: View {
     }
 }
 
+/// Which service sheet to present: a new service, or a replacement for an existing one.
+private enum ServiceSheetKind: Identifiable {
+    case add
+    case replace(ContainerSnapshot)
+
+    var id: String {
+        switch self {
+        case .add: "add"
+        case .replace(let service): service.id
+        }
+    }
+}
+
 private struct StackDetailContent: View {
     let stack: Stack
     @Environment(StacksStore.self) private var store
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
+    @State private var serviceSheet: ServiceSheetKind?
     @State private var displayName: String
     @State private var icon: String
 
@@ -98,7 +112,7 @@ private struct StackDetailContent: View {
                     .disabled(!stack.anyRunning)
                 }
             }
-            Section("Services") {
+            Section {
                 ForEach(stack.services, id: \.id) { service in
                     HStack(spacing: 8) {
                         StatusDot(status: service.status)
@@ -117,6 +131,45 @@ private struct StackDetailContent: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .contextMenu {
+                        Button("Replace…") { serviceSheet = .replace(service) }
+                        Button("Remove from Stack", role: .destructive) {
+                            Task { await store.removeService(id: service.id, from: stack.name) }
+                        }
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Services")
+                    Spacer()
+                    Button {
+                        serviceSheet = .add
+                    } label: {
+                        Label("Add Service…", systemImage: "plus")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Add a service to this stack, or re-create one that failed")
+                }
+            }
+
+            if !stack.volumes.isEmpty {
+                Section {
+                    ForEach(stack.volumes) { volume in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(volume.name)
+                                .fontWeight(.medium)
+                            Text(volume.mounts.joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Volumes")
+                } footer: {
+                    Text("Named volumes this stack's services mount. Deleting the stack keeps them — remove them from the Volumes section if you want the data gone.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -150,6 +203,14 @@ private struct StackDetailContent: View {
                 }
                 .help("Delete the whole stack")
                 .disabled(isBusy)
+            }
+        }
+        .sheet(item: $serviceSheet) { kind in
+            switch kind {
+            case .add:
+                StackServiceSheet(stackName: stack.name)
+            case .replace(let service):
+                StackServiceSheet(stackName: stack.name, replacing: service)
             }
         }
         .confirmationDialog(

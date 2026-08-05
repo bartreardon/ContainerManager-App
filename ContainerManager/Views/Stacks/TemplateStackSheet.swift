@@ -10,6 +10,8 @@ import UniformTypeIdentifiers
 /// A create sheet driven by a `StackTemplateDef`: renders the template's fields,
 /// builds a `StackSpec`, and runs the orchestrator with a shared progress/log view.
 struct TemplateStackSheet: View {
+    private static let runSectionID = "run"
+
     let template: StackTemplateDef
 
     @Environment(\.dismiss) private var dismiss
@@ -32,31 +34,40 @@ struct TemplateStackSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Form {
-                Section {
-                    ForEach(template.fields) { field in
-                        fieldView(field)
-                    }
-                } header: {
-                    Text(template.name)
-                } footer: {
-                    Text(template.summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let error {
+            ScrollViewReader { proxy in
+                Form {
                     Section {
-                        Text(error.message).foregroundStyle(.red).font(.callout)
+                        ForEach(template.fields) { field in
+                            fieldView(field)
+                        }
+                    } header: {
+                        Text(template.name)
+                    } footer: {
+                        Text(template.summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let error {
+                        Section {
+                            Text(error.message).foregroundStyle(.red).font(.callout)
+                        }
+                    }
+                    if isRunning || finished || !log.isEmpty {
+                        Section {
+                            StackRunView(log: log, progress: progress, isRunning: isRunning, finished: finished, resultURL: resultURL)
+                        }
+                        .id(Self.runSectionID)
                     }
                 }
-                if isRunning || finished || !log.isEmpty {
-                    Section {
-                        StackRunView(log: log, progress: progress, isRunning: isRunning, finished: finished, resultURL: resultURL)
-                    }
+                .formStyle(.grouped)
+                .disabled(isRunning)
+                // Creating a stack pulls images and can take minutes; make sure the
+                // progress view is on screen rather than below the fold.
+                .onChange(of: isRunning) {
+                    guard isRunning else { return }
+                    withAnimation { proxy.scrollTo(Self.runSectionID, anchor: .bottom) }
                 }
             }
-            .formStyle(.grouped)
-            .disabled(isRunning)
 
             Divider()
 
@@ -65,6 +76,8 @@ struct TemplateStackSheet: View {
                     Button("Export…") { exportDefinition() }
                         .help("Save this stack definition as a .containerstack file to share or customise")
                 }
+                Button("Import .env…") { importEnvValues() }
+                    .help("Fill the fields above from an env file (KEY=value per line)")
                 Spacer()
                 Button(finished ? "Done" : "Cancel") { dismiss() }
                 if !finished {
@@ -117,6 +130,33 @@ struct TemplateStackSheet: View {
         }
     }
 
+    /// Fills the fields above from an env file, so the values can live anywhere rather
+    /// than only in a `.env` beside the compose file. Field keys are matched
+    /// case-insensitively, since compose variables are conventionally uppercase.
+    private func importEnvValues() {
+        do {
+            guard let text = try EnvFile.pick() else { return }
+            var byKey: [String: String] = [:]
+            for entry in EnvFile.parse(text) {
+                guard let separator = entry.firstIndex(of: "=") else { continue }
+                byKey[String(entry[..<separator]).lowercased()] = String(entry[entry.index(after: separator)...])
+            }
+
+            let matched = template.fields.filter { byKey[$0.key.lowercased()] != nil }
+            for field in matched {
+                values[field.key] = byKey[field.key.lowercased()]
+            }
+            error =
+                matched.isEmpty
+                ? PresentedError(
+                    title: "Nothing matched",
+                    message: "No entries in that file match this stack's fields: \(template.fields.map(\.key).joined(separator: ", ")).")
+                : nil
+        } catch {
+            self.error = PresentedError(title: "Couldn't read file", error: error)
+        }
+    }
+
     private func chooseFolder(into key: String) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -138,7 +178,9 @@ struct TemplateStackSheet: View {
         }
 
         isRunning = true
-        log = []
+        // Seed a line so the progress section appears immediately — the first pull can
+        // run for a while before the orchestrator reports its first step.
+        log = ["Preparing “\(spec.name)”… (images may need downloading)"]
         do {
             resultURL = try await StackOrchestrator.run(spec: spec, progress: progress) { line in
                 log.append(line)

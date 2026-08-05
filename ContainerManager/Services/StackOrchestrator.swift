@@ -40,7 +40,7 @@ enum StackOrchestrator {
             let containerSpec = ContainerCreateSpec(
                 name: containerName,
                 image: service.image,
-                command: "",
+                command: service.command,
                 env: env,
                 cpus: nil,
                 memory: nil,
@@ -48,6 +48,7 @@ enum StackOrchestrator {
                 publishPorts: service.publishPorts,
                 volumes: service.volumes,
                 labels: labels,
+                platform: service.platform,
                 autoRemove: false,
                 startAfterCreate: false
             )
@@ -67,7 +68,7 @@ enum StackOrchestrator {
         return nil
     }
 
-    private static func ensureNetwork(named name: String) async throws {
+    static func ensureNetwork(named name: String) async throws {
         let client = NetworkClient()
         let existing = try await client.list()
         guard !existing.contains(where: { $0.name == name }) else { return }

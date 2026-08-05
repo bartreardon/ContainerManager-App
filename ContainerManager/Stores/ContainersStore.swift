@@ -26,6 +26,9 @@ struct ContainerCreateSpec {
     var volumes: [String]
     /// Labels as "key=value" entries.
     var labels: [String] = []
+    /// OCI platform (e.g. "linux/amd64") for multi-platform images; nil uses the host's.
+    /// Apple silicon runs linux/amd64 images under emulation.
+    var platform: String? = nil
     var autoRemove: Bool
     var startAfterCreate: Bool
 }

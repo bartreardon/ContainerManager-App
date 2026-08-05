@@ -46,7 +46,18 @@ struct ContainerCreateSheet: View {
                         .font(.body.monospaced())
                         .frame(height: 56)
                 } header: {
-                    Text("Environment")
+                    HStack {
+                        Text("Environment")
+                        Spacer()
+                        Button {
+                            importEnv()
+                        } label: {
+                            Label("Import from File…", systemImage: "square.and.arrow.down")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Load a .env file (KEY=value per line)")
+                    }
                 } footer: {
                     Text("One KEY=VALUE per line.")
                         .font(.caption)
@@ -154,6 +165,17 @@ struct ContainerCreateSheet: View {
     private var networkOptions: [String] {
         let names = networksStore.selectableNames
         return names.contains("default") ? names : ["default"] + names
+    }
+
+    /// Loads a `.env` file into the environment field.
+    private func importEnv() {
+        do {
+            guard let text = try EnvFile.pick() else { return }
+            envText = EnvFile.parse(text).joined(separator: "\n")
+            error = nil
+        } catch {
+            self.error = PresentedError(title: "Couldn't read file", error: error)
+        }
     }
 
     private func insertVolume(_ name: String) {

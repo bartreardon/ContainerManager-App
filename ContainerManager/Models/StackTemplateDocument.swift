@@ -31,6 +31,10 @@ struct StackTemplateDocument: Codable {
         var env: [String]?
         var volumes: [String]?
         var publishPorts: [String]?
+        /// Overrides the image's default command; omit to use the image default.
+        var command: String?
+        /// OCI platform (e.g. "linux/amd64") for images without the host's architecture.
+        var platform: String?
     }
 
     struct Web: Codable {
@@ -178,7 +182,9 @@ struct StackTemplateDocument: Codable {
                 image: try substitute(service.image, values: values),
                 env: try (service.env ?? []).map { try substitute($0, values: values) },
                 volumes: try (service.volumes ?? []).map { try substitute($0, values: values) },
-                publishPorts: try (service.publishPorts ?? []).map { try substitute($0, values: values) }
+                publishPorts: try (service.publishPorts ?? []).map { try substitute($0, values: values) },
+                command: try substitute(service.command ?? "", values: values),
+                platform: service.platform
             )
         }
     }

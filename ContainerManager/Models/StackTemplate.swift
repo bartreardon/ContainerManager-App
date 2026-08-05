@@ -14,6 +14,10 @@ struct StackServiceSpec: Identifiable {
     var env: [String]
     var volumes: [String]
     var publishPorts: [String]
+    /// Overrides the image's default command. Empty means "use the image default".
+    var command: String = ""
+    /// OCI platform (e.g. "linux/amd64") for images that don't ship the host's arch.
+    var platform: String? = nil
 
     var id: String { key }
 }

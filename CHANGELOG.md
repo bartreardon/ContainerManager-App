@@ -2,11 +2,24 @@
 
 All notable changes to ContainerManager.
 
-## 1.0.7 — 2026-07-21
+## 1.0.8 — 2026-08-05
 
 ### New
+- **Environment variables when building an image.** The Build Image sheet has an **Environment** switch that reveals a `KEY=value` field, with **Import from File…** to load a `.env` file (the format `--env-file` accepts — comments, `export`, and quoted values are handled). Values are applied both ways: passed as `--build-arg` for Dockerfiles that declare matching `ARG`s, and baked into the image as `ENV` defaults so containers run from it inherit them. Saved builds remember their env.
+- **Import an env file when running a container.** The container create sheet's Environment field gains the same **Import from File…** button.
 - **Menu bar item.** ContainerManager now lives in the menu bar: the icon reflects whether the container subsystem is running, and its menu gives quick access to **running machines** (Open Terminal, Copy IP) and **stack web UIs**, plus Start/Stop services and Open/Quit. A web UI that's running opens in the browser; one that's stopped starts the stack instead. ContainerManager keeps running in the menu bar after you close the window, and the **Dock icon hides while no window is open** and returns when you open one. "Open Container Manager" reuses the existing window rather than opening another. Settings ▸ Menu Bar toggles the icon.
 - **Custom stack name & icon.** A stack's detail view now has an **Appearance** section to give it a friendly name and pick an icon (from a set of SF Symbols). These show in the Stacks list, the window title, and the menu bar.
+- **Edit a stack's services.** A stack's detail view gains **Add Service…**, plus **Replace…** and **Remove from Stack** on each service. Replacing re-creates a service with new settings — the way to repair one that failed to create — carrying over the stack's labels, network, and web URL, and leaving named volumes untouched.
+- **Stacks list the volumes they use.** A **Volumes** section shows each named volume the stack mounts and which service mounts it where, so the association is visible without cross-referencing creation dates in the Volumes section.
+
+### Changed
+- **Compose import understands `${VAR}` and `command:`.** Compose files that interpolate variables (`MYSQL_PASSWORD=${MYSQL_PASSWORD}`) previously failed to import, because `${…}` clashed with the stack format's own field syntax. Each variable now becomes a field on the create sheet, prefilled from a `.env` sitting next to the compose file, with password-like names masked; `${VAR:-default}` is honoured. A service's `command:` (string or list form) is also carried through instead of being dropped, so images that need one — Fleet, Redis with flags — import intact.
+- Commands are now split with quotes respected, so `sh -c "a && b"` stays a single argument instead of being torn apart on spaces.
+- **Compose `platform:` is honoured.** Apple silicon can run `linux/amd64` images under emulation, so a service pinned to x86 now carries that through instead of failing with "image … does not support required platforms". Compose's `linux/x86_64` spelling is translated to the OCI `linux/amd64`.
+- **Creating a stack shows progress immediately.** The sheet scrolls to the progress log when you hit Create and seeds a first line, instead of appearing to hang while the first image downloads.
+
+### Fixed
+- **Pasting a docker-compose file into the Build Image sheet** produced a cryptic `unknown instruction: services:` from the builder. It's now detected up front, pointing at Stacks ▸ New Stack ▸ Import Template… instead.
 
 ## 1.0.6 — 2026-06-30
 
