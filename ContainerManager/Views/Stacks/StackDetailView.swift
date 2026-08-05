@@ -39,6 +39,7 @@ private enum ServiceSheetKind: Identifiable {
 private struct StackDetailContent: View {
     let stack: Stack
     @Environment(StacksStore.self) private var store
+    @Environment(WindowRouter.self) private var router
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
     @State private var serviceSheet: ServiceSheetKind?
@@ -58,6 +59,22 @@ private struct StackDetailContent: View {
     private func save() {
         StackMetadata.set(stack.name, displayName: displayName, icon: icon)
         Task { await store.refresh() }
+    }
+
+    private func openInTerminalApp(_ id: String) {
+        Task {
+            switch await TerminalLauncher.openContainerShell(containerId: id) {
+            case .opened, .openedViaFallback:
+                break
+            case .automationDenied:
+                store.lastError = PresentedError(
+                    title: "Terminal access needed",
+                    message: "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
+                )
+            case .failed(let message):
+                store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
+            }
+        }
     }
 
     var body: some View {
@@ -132,6 +149,15 @@ private struct StackDetailContent: View {
                         }
                     }
                     .contextMenu {
+                        // A stack service is a normal container, so `exec` works — and
+                        // the shell sees the stack's volumes mounted.
+                        Button("Open Terminal") {
+                            router.openTerminal(id: service.id, in: .containers)
+                        }
+                        .disabled(service.status != .running)
+                        Button("Open in Terminal.app") { openInTerminalApp(service.id) }
+                            .disabled(service.status != .running)
+                        Divider()
                         Button("Replace…") { serviceSheet = .replace(service) }
                         Button("Remove from Stack", role: .destructive) {
                             Task { await store.removeService(id: service.id, from: stack.name) }

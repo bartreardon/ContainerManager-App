@@ -137,6 +137,7 @@ final class StacksStore {
         to stackName: String,
         service: StackServiceSpec,
         replacing: ContainerSnapshot?,
+        webURL: String? = nil,
         progress: GuiProgress
     ) async throws {
         try await StackOrchestrator.ensureNetwork(named: "\(stackName)-net")
@@ -146,9 +147,24 @@ final class StacksStore {
             "\(StackLabels.role)=\(service.key)",
         ]
         // Keep the web-URL label so "Open in Browser" survives a replacement.
-        if let existing = replacing?.configuration.labels[StackLabels.url] {
+        let url = webURL?.trimmingCharacters(in: .whitespaces)
+        if let url, !url.isEmpty {
+            labels.append("\(StackLabels.url)=\(url)")
+        } else if url == nil, let existing = replacing?.configuration.labels[StackLabels.url] {
             labels.append("\(StackLabels.url)=\(existing)")
         }
+
+        // Resolve ${IP:role} against the stack's running services, exactly as the
+        // orchestrator does when standing a stack up — otherwise env copied from a
+        // stack definition would reach the container as a literal token.
+        var ips: [String: String] = [:]
+        for member in stack(named: stackName)?.services ?? [] where member.id != replacing?.id {
+            let role = member.configuration.labels[StackLabels.role] ?? member.id
+            if let address = member.networks.first?.ipv4Address {
+                ips[role] = "\(address)".withoutCIDRSuffix
+            }
+        }
+        let env = service.env.map { StackOrchestrator.resolve($0, ips: ips) }
 
         if let replacing {
             let client = ContainerClient()
@@ -160,7 +176,7 @@ final class StacksStore {
             name: "\(stackName)-\(service.key)",
             image: service.image,
             command: service.command,
-            env: service.env,
+            env: env,
             cpus: nil,
             memory: nil,
             network: "\(stackName)-net",

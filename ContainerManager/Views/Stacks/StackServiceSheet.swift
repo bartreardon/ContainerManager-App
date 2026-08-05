@@ -26,6 +26,7 @@ struct StackServiceSheet: View {
     @State private var portsText: String
     @State private var volumesText: String
     @State private var platform: String
+    @State private var webURL: String
     @State private var progress = GuiProgress()
     @State private var isRunning = false
     @State private var error: PresentedError?
@@ -44,6 +45,7 @@ struct StackServiceSheet: View {
         _portsText = State(initialValue: (config?.publishedPorts ?? []).map(Self.portSpec).joined(separator: "\n"))
         _volumesText = State(initialValue: (config?.mounts ?? []).compactMap(Self.mountSpec).joined(separator: "\n"))
         _platform = State(initialValue: config.map { "\($0.platform.os)/\($0.platform.architecture)" } ?? "")
+        _webURL = State(initialValue: config?.labels[StackLabels.url] ?? "")
     }
 
     private var isValid: Bool {
@@ -73,10 +75,17 @@ struct StackServiceSheet: View {
                         .font(.body.monospaced())
                         .frame(height: 56)
                 }
-                Section("Published Ports") {
+                Section {
                     TextEditor(text: $portsText)
                         .font(.body.monospaced())
                         .frame(height: 40)
+                    TextField("Web URL", text: $webURL, prompt: Text("e.g. http://localhost:8080"))
+                } header: {
+                    Text("Published Ports")
+                } footer: {
+                    Text("Setting a web URL gives the stack an “Open in Browser” action, here and in the menu bar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section {
                     TextEditor(text: $volumesText)
@@ -138,7 +147,8 @@ struct StackServiceSheet: View {
                 ? nil : platform.trimmingCharacters(in: .whitespaces)
         )
         do {
-            try await store.addService(to: stackName, service: spec, replacing: replacing, progress: progress)
+            try await store.addService(
+                to: stackName, service: spec, replacing: replacing, webURL: webURL, progress: progress)
             dismiss()
         } catch {
             self.error = PresentedError(title: "Failed to save service", error: error)
