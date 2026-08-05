@@ -21,6 +21,7 @@ enum StackOrchestrator {
     ) async throws -> URL? {
         onStep("Creating network “\(spec.networkName)”…")
         try await ensureNetwork(named: spec.networkName)
+        await ensureVolumes(for: spec)
 
         var ips: [String: String] = [:]
         for service in spec.services {
@@ -97,6 +98,19 @@ enum StackOrchestrator {
         specs.compactMap { spec in
             let withoutProtocol = spec.split(separator: "/").first.map(String.init) ?? spec
             return withoutProtocol.split(separator: ":").last.flatMap { UInt16($0) }
+        }
+    }
+
+    /// Creates the stack's named volumes up front, labelled with the stack they belong
+    /// to. The runtime would create them implicitly on first mount, but only labels a
+    /// volume at creation and offers no way to set one later — so claiming them here is
+    /// the only chance to record the association durably, and it outlives the stack.
+    static func ensureVolumes(for spec: StackSpec) async {
+        let names = Set(spec.services.flatMap { $0.volumes.compactMap(VolumeGrouping.volumeName(inMount:)) })
+        guard !names.isEmpty else { return }
+        let existing = Set(((try? await ClientVolume.list()) ?? []).map(\.name))
+        for name in names.subtracting(existing).sorted() {
+            _ = try? await ClientVolume.create(name: name, labels: [StackLabels.stack: spec.name])
         }
     }
 

@@ -141,6 +141,11 @@ final class StacksStore {
         progress: GuiProgress
     ) async throws {
         try await StackOrchestrator.ensureNetwork(named: "\(stackName)-net")
+        // Claim any new named volumes so they carry the stack label too.
+        await StackOrchestrator.ensureVolumes(
+            for: StackSpec(
+                name: stackName, networkName: "\(stackName)-net", services: [service],
+                webServiceKey: nil, webPort: nil))
 
         var labels = [
             "\(StackLabels.stack)=\(stackName)",
