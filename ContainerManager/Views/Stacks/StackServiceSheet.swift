@@ -48,6 +48,25 @@ struct StackServiceSheet: View {
         _webURL = State(initialValue: config?.labels[StackLabels.url] ?? "")
     }
 
+    /// Services from the stack's saved definition, offered as a starting point.
+    private var definedServices: [StackServiceSpec] {
+        StackDefinitionStore.load(for: stackName)?.plan()?.services ?? []
+    }
+
+    private func prefill(from service: StackServiceSpec) {
+        role = service.key
+        image = service.image
+        command = service.command
+        platform = service.platform ?? ""
+        envText = service.env.joined(separator: "\n")
+        portsText = service.publishPorts.joined(separator: "\n")
+        volumesText = service.volumes.joined(separator: "\n")
+        if let plan = StackDefinitionStore.load(for: stackName)?.plan(),
+            service.key == plan.webServiceKey, let port = plan.webPort {
+            webURL = "http://localhost:\(port)"
+        }
+    }
+
     private var isValid: Bool {
         !role.trimmingCharacters(in: .whitespaces).isEmpty
             && !image.trimmingCharacters(in: .whitespaces).isEmpty
@@ -63,7 +82,22 @@ struct StackServiceSheet: View {
                     TextField("Command", text: $command, prompt: Text("Image default"))
                     TextField("Platform", text: $platform, prompt: Text("Host default — e.g. linux/amd64"))
                 } header: {
-                    Text(replacing == nil ? "New Service" : "Replace “\(role)”")
+                    HStack {
+                        Text(replacing == nil ? "New Service" : "Replace “\(role)”")
+                        Spacer()
+                        // Anything the stack was defined with can be restored as-is,
+                        // rather than retyped.
+                        if !definedServices.isEmpty {
+                            Menu("Prefill from definition") {
+                                ForEach(definedServices) { service in
+                                    Button(service.key) { prefill(from: service) }
+                                }
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .font(.caption)
+                        }
+                    }
                 } footer: {
                     Text("The container will be named “\(stackName)-\(role.isEmpty ? "role" : role)” and joined to the \(stackName)-net network.")
                         .font(.caption)

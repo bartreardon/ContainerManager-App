@@ -185,6 +185,12 @@ struct TemplateStackSheet: View {
             resultURL = try await StackOrchestrator.run(spec: spec, progress: progress) { line in
                 log.append(line)
             }
+            // Keep what the stack was built from, so a service that failed (or is
+            // added later) can be re-created without re-entering everything.
+            if let document = template.document {
+                StackDefinitionStore.save(
+                    StackDefinition(document: document, values: values), for: spec.name)
+            }
             finished = true
             await store.refresh()
         } catch {

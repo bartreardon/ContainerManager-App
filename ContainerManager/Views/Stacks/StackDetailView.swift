@@ -44,6 +44,7 @@ private struct StackDetailContent: View {
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
     @State private var serviceSheet: ServiceSheetKind?
+    @State private var repairProgress = GuiProgress()
     @State private var displayName: String
     @State private var icon: String
 
@@ -55,6 +56,12 @@ private struct StackDetailContent: View {
 
     private var isBusy: Bool {
         store.isBusy(stack.name)
+    }
+
+    /// Services in the stack's saved definition that aren't present — usually one that
+    /// failed to create.
+    private var missing: [StackServiceSpec] {
+        store.missingServices(in: stack)
     }
 
     private func save() {
@@ -177,6 +184,34 @@ private struct StackDetailContent: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Add a service to this stack, or re-create one that failed")
+                }
+            }
+
+            if !missing.isEmpty {
+                Section {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(missing.count) service\(missing.count == 1 ? "" : "s") missing")
+                                .fontWeight(.medium)
+                            Text(missing.map(\.key).joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if isBusy {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Button("Re-create") {
+                                Task { await store.recreateMissingServices(in: stack, progress: repairProgress) }
+                            }
+                        }
+                    }
+                } footer: {
+                    Text("These are defined in the stack's saved definition but aren't running. Re-creating uses the settings it was created with.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 

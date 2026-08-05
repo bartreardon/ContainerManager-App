@@ -211,6 +211,33 @@ final class StacksStore {
                 try await client.delete(id: service.id, force: true)
             }
             try? await NetworkClient().delete(id: stack.networkName)
+            // The stashed definition can hold credentials, so it goes with the stack.
+            StackDefinitionStore.delete(for: name)
+        }
+    }
+
+    /// Services the stack was defined with that aren't present right now — what a
+    /// failed create leaves behind. Empty when the stack has no stashed definition.
+    func missingServices(in stack: Stack) -> [StackServiceSpec] {
+        guard let plan = StackDefinitionStore.load(for: stack.name)?.plan() else { return [] }
+        let present = Set(stack.services.map { $0.configuration.labels[StackLabels.role] ?? $0.id })
+        return plan.services.filter { !present.contains($0.key) }
+    }
+
+    /// Re-creates every service missing from the stack, using its stashed definition.
+    func recreateMissingServices(in stack: Stack, progress: GuiProgress) async {
+        guard let plan = StackDefinitionStore.load(for: stack.name)?.plan() else { return }
+        let missing = missingServices(in: stack)
+        await perform(name: stack.name, title: "Failed to re-create services") {
+            for service in missing {
+                // Restore the web-URL label if this is the stack's web service.
+                var webURL: String?
+                if service.key == plan.webServiceKey, let port = plan.webPort {
+                    webURL = "http://localhost:\(port)"
+                }
+                try await self.addService(
+                    to: stack.name, service: service, replacing: nil, webURL: webURL, progress: progress)
+            }
         }
     }
 
