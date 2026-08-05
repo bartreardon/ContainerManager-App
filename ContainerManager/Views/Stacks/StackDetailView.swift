@@ -39,6 +39,7 @@ private enum ServiceSheetKind: Identifiable {
 private struct StackDetailContent: View {
     let stack: Stack
     @Environment(StacksStore.self) private var store
+    @Environment(NetworksStore.self) private var networksStore
     @Environment(WindowRouter.self) private var router
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
@@ -177,6 +178,22 @@ private struct StackDetailContent: View {
                     .buttonStyle(.borderless)
                     .help("Add a service to this stack, or re-create one that failed")
                 }
+            }
+
+            Section {
+                LabeledContent("Name", value: stack.networkName)
+                if let network = networksStore.network(withId: stack.networkName) {
+                    LabeledContent("Mode", value: network.configuration.mode == .hostOnly ? "Host-only" : "NAT")
+                    LabeledContent("IPv4 Subnet", value: "\(network.status.ipv4Subnet)")
+                } else {
+                    LabeledContent("Status", value: "Not created yet")
+                }
+            } header: {
+                Text("Network")
+            } footer: {
+                Text("Services reach each other by IP on this network. It's internal to this Mac — to reach a service from another device, publish a port on the service and use this Mac's address.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if !stack.volumes.isEmpty {
