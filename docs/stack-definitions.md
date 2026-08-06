@@ -83,12 +83,17 @@ These are deliberate, and worth knowing before you plan around them.
 - **Services reach each other by IP, not name.** Container-name DNS doesn't
   resolve on stock `container` (network aliases are not available), which is why
   imports rewrite service references to `${IP:…}`. The address is substituted
-  when the container is *created*, so if a dependency is later recreated it gets
-  a new IP and its dependants keep the old one — recreate them too, or point the
-  dependant at `localhost:<published port>` where one is published.
-- **Environment is fixed at creation.** Editing a `.env` afterwards changes
-  nothing until the service is replaced. The same applies to anything a service
-  stores about itself, such as a server URL recorded during first-run setup.
+  when the container is *created*, and the runtime hands out new ones as
+  containers start. **Starting a stack reconciles this**: services come up in
+  dependency order, and any whose addresses have gone stale are re-created with
+  the current ones — changing only the address entries, so anything you've edited
+  by hand survives. A service started on its own, outside the stack, isn't
+  reconciled.
+- **Environment is otherwise fixed at creation.** Editing a `.env` afterwards
+  changes nothing until the service is replaced. The same applies to anything a
+  service stores about itself, such as a server URL recorded during first-run
+  setup — point those at `localhost:<published port>` rather than a container
+  address, since that survives a restart.
 - **`depends_on` conditions are approximated.** Compose's `service_healthy` and
   `service_completed_successfully` aren't evaluated; instead each service is
   waited on until it accepts TCP connections on the ports it exposes, up to two

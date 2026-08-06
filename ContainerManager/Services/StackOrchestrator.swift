@@ -35,6 +35,8 @@ enum StackOrchestrator {
         try await ensureNetwork(named: spec.networkName)
         await ensureVolumes(for: spec)
 
+        // Only dependencies are worth waiting for; see referencedRoles.
+        let awaited = referencedRoles(in: spec)
         var ips: [String: String] = [:]
         for service in spec.services {
             let containerName = "\(spec.name)-\(service.key)"
@@ -72,7 +74,9 @@ enum StackOrchestrator {
                 let address = snapshot.networks.first?.ipv4Address {
                 let ip = "\(address)".withoutCIDRSuffix
                 ips[service.key] = ip
-                await waitUntilReady(service, host: ip, onStep: onStep)
+                if awaited.contains(service.key) {
+                    await waitUntilReady(service, host: ip, onStep: onStep)
+                }
             }
         }
 
@@ -95,18 +99,44 @@ enum StackOrchestrator {
         host: String,
         onStep: @escaping @MainActor (String) -> Void
     ) async {
+        // Without an address there's nothing to probe; waiting would just burn the
+        // timeout against nothing.
+        guard !host.isEmpty, host != "0.0.0.0" else {
+            await onStep("\(service.displayName) has no address yet — not waiting for it.")
+            return
+        }
         for port in containerPorts(in: service.publishPorts) {
-            await onStep("Waiting for \(service.displayName) to accept connections on \(port)…")
+            // Name the address: a wait that never succeeds is usually the wrong target,
+            // and that's invisible if the log only mentions the port.
+            await onStep("Waiting for \(service.displayName) on \(host):\(port)…")
             let ready = await PortProbe.waitUntilAccepting(host: host, port: port, timeout: .seconds(120))
             await onStep(
                 ready
                     ? "\(service.displayName) is ready."
-                    : "\(service.displayName) isn’t listening on \(port) yet — continuing.")
+                    : "\(service.displayName) isn’t listening on \(host):\(port) yet — continuing.")
         }
     }
 
+    /// Service keys that other services address by IP. Only these are worth waiting on:
+    /// waiting for a service nothing depends on (typically the last one, the app itself)
+    /// just stalls for the timeout after all the work is already done.
+    nonisolated static func referencedRoles(in spec: StackSpec) -> Set<String> {
+        var roles: Set<String> = []
+        for service in spec.services {
+            for entry in service.env {
+                var rest = Substring(entry)
+                while let start = rest.range(of: "${IP:") {
+                    guard let end = rest[start.upperBound...].firstIndex(of: "}") else { break }
+                    roles.insert(String(rest[start.upperBound..<end]))
+                    rest = rest[rest.index(after: end)...]
+                }
+            }
+        }
+        return roles
+    }
+
     /// Container-side ports from "[host-ip:]host:container[/proto]" publish specs.
-    nonisolated private static func containerPorts(in specs: [String]) -> [UInt16] {
+    nonisolated static func containerPorts(in specs: [String]) -> [UInt16] {
         specs.compactMap { spec in
             let withoutProtocol = spec.split(separator: "/").first.map(String.init) ?? spec
             return withoutProtocol.split(separator: ":").last.flatMap { UInt16($0) }

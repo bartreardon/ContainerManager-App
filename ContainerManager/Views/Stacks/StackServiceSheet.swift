@@ -40,10 +40,10 @@ struct StackServiceSheet: View {
             ?? replacing?.id.replacingOccurrences(of: "\(stackName)-", with: "")
         _role = State(initialValue: role ?? "")
         _image = State(initialValue: config?.image.reference ?? "")
-        _command = State(initialValue: Self.commandLine(config?.initProcess))
+        _command = State(initialValue: config.map { ContainerServiceSpec.commandLine($0.initProcess) } ?? "")
         _envText = State(initialValue: (config?.initProcess.environment ?? []).joined(separator: "\n"))
-        _portsText = State(initialValue: (config?.publishedPorts ?? []).map(Self.portSpec).joined(separator: "\n"))
-        _volumesText = State(initialValue: (config?.mounts ?? []).compactMap(Self.mountSpec).joined(separator: "\n"))
+        _portsText = State(initialValue: (config?.publishedPorts ?? []).map(ContainerServiceSpec.portSpec).joined(separator: "\n"))
+        _volumesText = State(initialValue: (config?.mounts ?? []).compactMap(ContainerServiceSpec.mountSpec).joined(separator: "\n"))
         _platform = State(initialValue: config.map { "\($0.platform.os)/\($0.platform.architecture)" } ?? "")
         _webURL = State(initialValue: config?.labels[StackLabels.url] ?? "")
     }
@@ -196,30 +196,6 @@ struct StackServiceSheet: View {
             .filter { !$0.isEmpty }
     }
 
-    /// The runtime stores the executable separately from its arguments, so joining only
-    /// `arguments` drops argv[0]: `sh -c "…"` came back as `-c "…"`, and the container
-    /// then failed with "failed to find target executable -c".
-    private static func commandLine(_ process: ProcessConfiguration?) -> String {
-        guard let process else { return "" }
-        var argv = process.arguments
-        if !process.executable.isEmpty, argv.first != process.executable {
-            argv.insert(process.executable, at: 0)
-        }
-        return ShellWords.join(argv)
-    }
 
-    private static func portSpec(_ port: PublishPort) -> String {
-        let host = "\(port.hostAddress)"
-        let mapping = "\(port.hostPort):\(port.containerPort)"
-        return (host.isEmpty || host == "0.0.0.0") ? mapping : "\(host):\(mapping)"
-    }
 
-    /// Named volumes and host binds, in the "source:destination[:ro]" form the create
-    /// path expects. Other mount kinds (the image's own filesystem) are skipped.
-    private static func mountSpec(_ mount: Filesystem) -> String? {
-        let source = mount.volumeName ?? mount.source
-        guard mount.isVolume || source.hasPrefix("/") else { return nil }
-        guard !source.isEmpty, !mount.destination.isEmpty else { return nil }
-        return mount.options.readonly ? "\(source):\(mount.destination):ro" : "\(source):\(mount.destination)"
-    }
 }
