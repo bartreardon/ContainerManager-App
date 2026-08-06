@@ -22,6 +22,9 @@ All notable changes to ContainerManager.
 - **Open a terminal into a stack service.** Right-click a service in a stack for **Open Terminal** (in-app) or **Open in Terminal.app** — the shell sees the stack's volumes mounted, so its data is inspectable in place.
 - **Creating a stack shows progress immediately.** The sheet scrolls to the progress log when you hit Create and seeds a first line, instead of appearing to hang while the first image downloads.
 
+- **Stacks keep a log of how they were built.** A **Log** button on a stack shows what its import couldn't carry over, the full creation transcript including readiness waits and any failure, and services added or replaced since — the import summary previously appeared once in an alert and was then gone. Stored beside the stack's definition and removed with it.
+- **Compose imports say *why* a key was skipped.** Instead of a bare list, each entry explains the consequence — e.g. "`restart:` — restart policies aren't supported; start the stack again if a service stops" — and the list is kept in the stack's log rather than only shown once.
+
 ### Fixed
 - **Creating a stack no longer freezes the app.** Image pull, unpack and container creation ran on the main actor (the target defaults every type to `MainActor`, and the orchestrator was explicitly annotated too), so the create sheet couldn't repaint or scroll for the whole run. That work now runs off the main actor, with only progress callbacks hopping back.
 - **The progress log stays in view.** The sheet scrolled to the log once when the run started, then the log box grew line by line and slid below the fold. The log and status areas are now fixed-height, and the sheet re-pins to them as they update.

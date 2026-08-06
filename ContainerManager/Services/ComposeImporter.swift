@@ -51,7 +51,12 @@ enum ComposeImporter {
             throw ComposeError.noServices
         }
 
-        var ignored: Set<String> = Set(top.keys.filter { !["services", "version", "name", "volumes", "networks"].contains($0) }.map { "\($0):" })
+        // Item → why it couldn't be carried over. A bare list of keys leaves you
+        // guessing whether each one mattered.
+        var ignored: [String: String] = [:]
+        for key in top.keys where !["services", "version", "name", "volumes", "networks"].contains(key) {
+            ignored["\(key):"] = reason(forKey: key)
+        }
         let serviceKeys = Set(services.keys)
         let baseName = url.deletingPathExtension().lastPathComponent.sanitizedResourceName
 
@@ -64,20 +69,24 @@ enum ComposeImporter {
                 // A `build:` service can't be represented — skip it and report, rather
                 // than failing the whole import (other services may be fine).
                 if service["build"] != nil {
-                    ignored.insert("\(key) (build:)")
+                    ignored["\(key) (build:)"] =
+                        "images must be built first; use Images ▸ Build Image…, then reference the tag with image:"
                     continue
                 }
                 throw ComposeError.missingImage(key)
             }
             for unsupported in service.keys where !supportedServiceKeys.contains(unsupported) {
-                ignored.insert("\(key).\(unsupported):")
+                ignored["\(key).\(unsupported):"] = reason(forKey: unsupported)
             }
 
             let env = environment(service["environment"]).map {
                 rewriteServiceReferences(in: $0, services: serviceKeys)
             }
             let (volumeSpecs, skippedAnonymous) = volumeStrings(service["volumes"])
-            if skippedAnonymous { ignored.insert("\(key) anonymous volume") }
+            if skippedAnonymous {
+                ignored["\(key) anonymous volume"] =
+                    "a mount with no source can't be named; give it a volume name or a host path"
+            }
             let volumes = volumeSpecs.compactMap {
                 resolveVolume($0, relativeTo: url.deletingLastPathComponent())
             }
@@ -177,7 +186,8 @@ enum ComposeImporter {
             }
         }
         if !ignored.isEmpty {
-            notes += " Not imported: \(ignored.sorted().joined(separator: ", "))."
+            let entries = ignored.sorted { $0.key < $1.key }.map { "• \($0.key) — \($0.value)" }
+            notes += "\n\nNot imported:\n" + entries.joined(separator: "\n")
         }
 
         return StackTemplateDocument(
@@ -227,6 +237,43 @@ enum ComposeImporter {
         if let string = raw as? String { return string }
         if let list = raw as? [Any] { return ShellWords.join(list.map { "\($0)" }) }
         return ""
+    }
+
+    /// Why a compose key couldn't be carried over. Says what the consequence is, so the
+    /// summary is actionable rather than a list of things that were silently dropped.
+    private static func reason(forKey key: String) -> String {
+        switch key {
+        case "restart", "deploy":
+            "restart policies aren't supported; start the stack again if a service stops"
+        case "healthcheck":
+            "health probes aren't run; dependants wait for the port to accept connections instead"
+        case "cap_add", "cap_drop", "privileged", "security_opt":
+            "capability and privilege changes aren't supported"
+        case "networks", "network_mode", "links", "dns", "extra_hosts":
+            "every service shares one stack network and reaches the others by IP"
+        case "profiles":
+            "profiles aren't evaluated — all services were imported"
+        case "env_file":
+            "referenced env files aren't read; use “Import .env…” on the create sheet"
+        case "extends", "include":
+            "composing files together isn't supported; flatten it into this file"
+        case "entrypoint":
+            "entrypoint overrides aren't supported; fold it into command:"
+        case "secrets", "configs":
+            "secrets and configs aren't supported; pass values as environment variables"
+        case "devices", "sysctls", "ulimits", "userns_mode", "cgroup_parent":
+            "host and kernel tuning isn't supported"
+        case "logging":
+            "logging drivers aren't configurable; output is available from the container"
+        case "user":
+            "running as a different user isn't supported"
+        case "working_dir":
+            "the working directory can't be overridden; set it in the image"
+        case "depends_on":
+            "only ordering is honoured, not conditions"
+        default:
+            key.hasPrefix("x-") ? "an extension field, not part of the spec" : "not supported"
+        }
     }
 
     /// Compose `platform:` written in `uname -m` terms (`linux/x86_64`) into the OCI

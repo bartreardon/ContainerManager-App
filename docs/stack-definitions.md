@@ -69,3 +69,38 @@ service by name (`db`, `db:3306`, `…@db:…`) are rewritten to `${IP:…}` tok
 since containers don't resolve each other by hostname here. Anything else
 (`restart:`, `healthcheck:`, …) is skipped and listed in the imported template's
 `notes` so you can see what didn't carry over.
+
+A compose file's `${VAR}` references become fields on the create form, prefilled
+from a `.env` sitting beside it (or loaded later with **Import .env…**), with
+password-like names masked. `${VAR:-default}` is honoured. Whatever couldn't be
+carried over is listed with the reason it was skipped, both in the summary shown
+after import and in the stack's log.
+
+## Limitations
+
+These are deliberate, and worth knowing before you plan around them.
+
+- **Services reach each other by IP, not name.** Container-name DNS doesn't
+  resolve on stock `container` (network aliases are not available), which is why
+  imports rewrite service references to `${IP:…}`. The address is substituted
+  when the container is *created*, so if a dependency is later recreated it gets
+  a new IP and its dependants keep the old one — recreate them too, or point the
+  dependant at `localhost:<published port>` where one is published.
+- **Environment is fixed at creation.** Editing a `.env` afterwards changes
+  nothing until the service is replaced. The same applies to anything a service
+  stores about itself, such as a server URL recorded during first-run setup.
+- **`depends_on` conditions are approximated.** Compose's `service_healthy` and
+  `service_completed_successfully` aren't evaluated; instead each service is
+  waited on until it accepts TCP connections on the ports it exposes, up to two
+  minutes, before the next one starts.
+- **Images aren't built.** `build:` services are skipped rather than failing the
+  whole file. Build the image first, then reference it by tag.
+- **Image `VOLUME` contents aren't copied into fresh volumes.** Some images
+  expect a mounted directory to be pre-populated or owned by their runtime user;
+  those may need an init service that fixes ownership before the main service
+  starts.
+- **Only what the runtime supports.** `restart:`, `healthcheck:`, `cap_add:`,
+  `profiles:`, `secrets:`, `extends:` and similar have no equivalent here.
+
+If you need full compose fidelity, `container-compose` implements far more of the
+spec as a `container` CLI plugin, at the cost of running a forked runtime.
