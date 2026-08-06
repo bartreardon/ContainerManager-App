@@ -196,6 +196,12 @@ final class StacksStore {
             startAfterCreate: false
         )
         try await ContainerLauncher.create(spec: spec, progress: progress, start: true)
+        StackLog.append(
+            section: replacing == nil ? "Added service “\(service.key)”" : "Replaced service “\(service.key)”",
+            lines: ["image: \(service.image)"]
+                + (service.command.isEmpty ? [] : ["command: \(service.command)"])
+                + (service.platform.map { ["platform: \($0)"] } ?? []),
+            to: stackName)
         await refresh()
     }
 
@@ -221,6 +227,7 @@ final class StacksStore {
             try? await NetworkClient().delete(id: stack.networkName)
             // The stashed definition can hold credentials, so it goes with the stack.
             StackDefinitionStore.delete(for: name)
+            StackLog.delete(for: name)
         }
     }
 

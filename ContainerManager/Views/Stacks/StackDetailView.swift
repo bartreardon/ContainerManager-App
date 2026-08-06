@@ -45,6 +45,7 @@ private struct StackDetailContent: View {
     @State private var showIconPicker = false
     @State private var serviceSheet: ServiceSheetKind?
     @State private var repairProgress = GuiProgress()
+    @State private var showLog = false
     @State private var displayName: String
     @State private var icon: String
 
@@ -274,6 +275,14 @@ private struct StackDetailContent: View {
                 if isBusy {
                     ProgressView().controlSize(.small)
                 }
+                if StackLog.exists(for: stack.name) {
+                    Button {
+                        showLog = true
+                    } label: {
+                        Label("Log", systemImage: "doc.text")
+                    }
+                    .help("How this stack was created, and anything the import couldn’t carry over")
+                }
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
@@ -282,6 +291,9 @@ private struct StackDetailContent: View {
                 .help("Delete the whole stack")
                 .disabled(isBusy)
             }
+        }
+        .sheet(isPresented: $showLog) {
+            StackLogSheet(stackName: stack.name)
         }
         .sheet(item: $serviceSheet) { kind in
             switch kind {

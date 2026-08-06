@@ -252,6 +252,12 @@ struct TemplateStackSheet: View {
         if let document = template.document {
             StackDefinitionStore.save(
                 StackDefinition(document: document, values: values), for: spec.name)
+            // The import summary — including anything that couldn't be carried over —
+            // otherwise only ever appeared in a one-shot alert.
+            StackLog.append(
+                section: "Definition (\(template.name))",
+                lines: [document.notes].compactMap { $0 },
+                to: spec.name)
         }
 
         do {
@@ -269,6 +275,7 @@ struct TemplateStackSheet: View {
             // orphan definition (and its credentials) behind.
             if created == 0 {
                 StackDefinitionStore.delete(for: spec.name)
+                StackLog.delete(for: spec.name)
             }
             log.append("Failed: \(PresentedError.describe(error))")
             outcome = .failed(
@@ -276,6 +283,9 @@ struct TemplateStackSheet: View {
                 total: spec.services.count,
                 message: PresentedError.describe(error))
         }
+        // Keep the run itself, so the steps and any failure can be examined later —
+        // working out which manual steps remain is the whole point.
+        StackLog.append(section: "Create", lines: log, to: spec.name)
         isRunning = false
     }
 }
