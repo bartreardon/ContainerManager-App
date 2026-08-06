@@ -7,9 +7,8 @@ All notable changes to ContainerManager.
 ### New
 - **Environment variables when building an image.** The Build Image sheet has an **Environment** switch that reveals a `KEY=value` field, with **Import from File…** to load a `.env` file (the format `--env-file` accepts — comments, `export`, and quoted values are handled). Values are applied both ways: passed as `--build-arg` for Dockerfiles that declare matching `ARG`s, and baked into the image as `ENV` defaults so containers run from it inherit them. Saved builds remember their env.
 - **Import an env file when running a container.** The container create sheet's Environment field gains the same **Import from File…** button.
-- **Menu bar item.** ContainerManager now lives in the menu bar: the icon reflects whether the container subsystem is running, and its menu gives quick access to **running machines** (Open Terminal, Copy IP) and **stack web UIs**, plus Start/Stop services and Open/Quit. A web UI that's running opens in the browser; one that's stopped starts the stack instead. ContainerManager keeps running in the menu bar after you close the window, and the **Dock icon hides while no window is open** and returns when you open one. "Open Container Manager" reuses the existing window rather than opening another. Settings ▸ Menu Bar toggles the icon.
-- **Custom stack name & icon.** A stack's detail view now has an **Appearance** section to give it a friendly name and pick an icon (from a set of SF Symbols). These show in the Stacks list, the window title, and the menu bar.
 - **Edit a stack's services.** A stack's detail view gains **Add Service…**, plus **Replace…** and **Remove from Stack** on each service. Replacing re-creates a service with new settings — the way to repair one that failed to create — carrying over the stack's labels, network, and web URL, and leaving named volumes untouched.
+- **Stacks keep a log of how they were built.** A **Log** button on a stack shows what its import couldn't carry over, the full creation transcript including readiness waits and any failure, and services added or replaced since — the import summary previously appeared once in an alert and was then gone. Stored beside the stack's definition and removed with it.
 - **Stacks list the volumes they use.** A **Volumes** section shows each named volume the stack mounts and which service mounts it where, so the association is visible without cross-referencing creation dates in the Volumes section.
 
 ### Changed
@@ -21,8 +20,6 @@ All notable changes to ContainerManager.
 - **Stack services wait for their dependencies.** Compose's `depends_on: condition: service_healthy` can't be honoured directly, and "started" isn't "ready" — a database initialising a fresh volume can take a minute, while a dependent that connects on startup (Fleet runs `fleet prepare db` immediately) fails outright against it. Each service is now waited on until it accepts connections on the ports it exposes before the next one starts.
 - **Open a terminal into a stack service.** Right-click a service in a stack for **Open Terminal** (in-app) or **Open in Terminal.app** — the shell sees the stack's volumes mounted, so its data is inspectable in place.
 - **Creating a stack shows progress immediately.** The sheet scrolls to the progress log when you hit Create and seeds a first line, instead of appearing to hang while the first image downloads.
-
-- **Stacks keep a log of how they were built.** A **Log** button on a stack shows what its import couldn't carry over, the full creation transcript including readiness waits and any failure, and services added or replaced since — the import summary previously appeared once in an alert and was then gone. Stored beside the stack's definition and removed with it.
 - **Compose imports say *why* a key was skipped.** Instead of a bare list, each entry explains the consequence — e.g. "`restart:` — restart policies aren't supported; start the stack again if a service stops" — and the list is kept in the stack's log rather than only shown once.
 
 ### Fixed
@@ -32,6 +29,12 @@ All notable changes to ContainerManager.
 - **Stacks are checked before anything is created.** Missing host bind paths, mount paths left empty by an unset variable, invalid port mappings, and missing images are all reported together up front, instead of standing up half a stack and failing on the last service.
 - **Replacing a service kept the whole command.** The runtime stores a container's executable separately from its arguments, so the prefill dropped `argv[0]` — `sh -c "…"` came back as `-c "…"` and the container failed to start.
 - **Pasting a docker-compose file into the Build Image sheet** produced a cryptic `unknown instruction: services:` from the builder. It's now detected up front, pointing at Stacks ▸ New Stack ▸ Import Template… instead.
+
+## 1.0.7 — 2026-07-21
+
+### New
+- **Menu bar item.** ContainerManager now lives in the menu bar: the icon reflects whether the container subsystem is running, and its menu gives quick access to **running machines** (Open Terminal, Copy IP) and **stack web UIs**, plus Start/Stop services and Open/Quit. A web UI that's running opens in the browser; one that's stopped starts the stack instead. ContainerManager keeps running in the menu bar after you close the window, and the **Dock icon hides while no window is open** and returns when you open one. "Open Container Manager" reuses the existing window rather than opening another. Settings ▸ Menu Bar toggles the icon.
+- **Custom stack name & icon.** A stack's detail view now has an **Appearance** section to give it a friendly name and pick an icon (from a set of SF Symbols). These show in the Stacks list, the window title, and the menu bar.
 
 ## 1.0.6 — 2026-06-30
 
