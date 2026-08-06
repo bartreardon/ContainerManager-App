@@ -40,7 +40,7 @@ struct StackServiceSheet: View {
             ?? replacing?.id.replacingOccurrences(of: "\(stackName)-", with: "")
         _role = State(initialValue: role ?? "")
         _image = State(initialValue: config?.image.reference ?? "")
-        _command = State(initialValue: ShellWords.join(config?.initProcess.arguments ?? []))
+        _command = State(initialValue: Self.commandLine(config?.initProcess))
         _envText = State(initialValue: (config?.initProcess.environment ?? []).joined(separator: "\n"))
         _portsText = State(initialValue: (config?.publishedPorts ?? []).map(Self.portSpec).joined(separator: "\n"))
         _volumesText = State(initialValue: (config?.mounts ?? []).compactMap(Self.mountSpec).joined(separator: "\n"))
@@ -194,6 +194,18 @@ struct StackServiceSheet: View {
         text.split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+    }
+
+    /// The runtime stores the executable separately from its arguments, so joining only
+    /// `arguments` drops argv[0]: `sh -c "…"` came back as `-c "…"`, and the container
+    /// then failed with "failed to find target executable -c".
+    private static func commandLine(_ process: ProcessConfiguration?) -> String {
+        guard let process else { return "" }
+        var argv = process.arguments
+        if !process.executable.isEmpty, argv.first != process.executable {
+            argv.insert(process.executable, at: 0)
+        }
+        return ShellWords.join(argv)
     }
 
     private static func portSpec(_ port: PublishPort) -> String {

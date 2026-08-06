@@ -140,12 +140,15 @@ final class StacksStore {
         webURL: String? = nil,
         progress: GuiProgress
     ) async throws {
+        let plan = StackSpec(
+            name: stackName, networkName: "\(stackName)-net", services: [service],
+            webServiceKey: nil, webPort: nil)
+        let issues = StackValidator.issues(in: plan)
+        guard issues.isEmpty else { throw StackValidator.Failure(issues: issues) }
+
         try await StackOrchestrator.ensureNetwork(named: "\(stackName)-net")
         // Claim any new named volumes so they carry the stack label too.
-        await StackOrchestrator.ensureVolumes(
-            for: StackSpec(
-                name: stackName, networkName: "\(stackName)-net", services: [service],
-                webServiceKey: nil, webPort: nil))
+        await StackOrchestrator.ensureVolumes(for: plan)
 
         var labels = [
             "\(StackLabels.stack)=\(stackName)",

@@ -13,20 +13,32 @@ import Foundation
 enum StackOrchestrator {
     /// Runs the plan. `onStep` reports high-level progress lines; `progress` carries
     /// image fetch/unpack progress. Returns the web URL if the stack exposes one.
-    @MainActor @discardableResult
-    static func run(
+    ///
+    /// Deliberately `nonisolated`: the target defaults to `MainActor` isolation, and
+    /// pulling and unpacking images on the main actor blocks the UI for the whole run —
+    /// the create sheet can't even scroll. Only the callbacks hop back.
+    @discardableResult
+    nonisolated static func run(
         spec: StackSpec,
         progress: GuiProgress,
         onStep: @escaping @MainActor (String) -> Void
     ) async throws -> URL? {
-        onStep("Creating network “\(spec.networkName)”…")
+        // Fail before creating anything — a problem in the last service would otherwise
+        // strand the earlier ones.
+        let issues = StackValidator.issues(in: spec)
+        guard issues.isEmpty else {
+            await onStep("Nothing was created — \(issues.count) problem\(issues.count == 1 ? "" : "s") found.")
+            throw StackValidator.Failure(issues: issues)
+        }
+
+        await onStep("Creating network “\(spec.networkName)”…")
         try await ensureNetwork(named: spec.networkName)
         await ensureVolumes(for: spec)
 
         var ips: [String: String] = [:]
         for service in spec.services {
             let containerName = "\(spec.name)-\(service.key)"
-            onStep("Starting \(service.displayName) (\(containerName))…")
+            await onStep("Starting \(service.displayName) (\(containerName))…")
 
             let env = service.env.map { resolve($0, ips: ips) }
 
@@ -64,7 +76,7 @@ enum StackOrchestrator {
             }
         }
 
-        onStep("Stack “\(spec.name)” is up.")
+        await onStep("Stack “\(spec.name)” is up.")
         if let port = spec.webPort, spec.webServiceKey != nil {
             return URL(string: "http://localhost:\(port)")
         }
@@ -78,15 +90,15 @@ enum StackOrchestrator {
     /// initialising a fresh volume can take a minute, while a dependent that connects on
     /// startup (Fleet runs `fleet prepare db` immediately) fails outright against it.
     /// A timeout here isn't fatal: the service may simply not listen on a TCP port.
-    private static func waitUntilReady(
+    nonisolated private static func waitUntilReady(
         _ service: StackServiceSpec,
         host: String,
         onStep: @escaping @MainActor (String) -> Void
     ) async {
         for port in containerPorts(in: service.publishPorts) {
-            onStep("Waiting for \(service.displayName) to accept connections on \(port)…")
+            await onStep("Waiting for \(service.displayName) to accept connections on \(port)…")
             let ready = await PortProbe.waitUntilAccepting(host: host, port: port, timeout: .seconds(120))
-            onStep(
+            await onStep(
                 ready
                     ? "\(service.displayName) is ready."
                     : "\(service.displayName) isn’t listening on \(port) yet — continuing.")
@@ -94,7 +106,7 @@ enum StackOrchestrator {
     }
 
     /// Container-side ports from "[host-ip:]host:container[/proto]" publish specs.
-    private static func containerPorts(in specs: [String]) -> [UInt16] {
+    nonisolated private static func containerPorts(in specs: [String]) -> [UInt16] {
         specs.compactMap { spec in
             let withoutProtocol = spec.split(separator: "/").first.map(String.init) ?? spec
             return withoutProtocol.split(separator: ":").last.flatMap { UInt16($0) }
@@ -105,7 +117,7 @@ enum StackOrchestrator {
     /// to. The runtime would create them implicitly on first mount, but only labels a
     /// volume at creation and offers no way to set one later — so claiming them here is
     /// the only chance to record the association durably, and it outlives the stack.
-    static func ensureVolumes(for spec: StackSpec) async {
+    nonisolated static func ensureVolumes(for spec: StackSpec) async {
         let names = Set(spec.services.flatMap { $0.volumes.compactMap(VolumeGrouping.volumeName(inMount:)) })
         guard !names.isEmpty else { return }
         let existing = Set(((try? await ClientVolume.list()) ?? []).map(\.name))
@@ -114,7 +126,7 @@ enum StackOrchestrator {
         }
     }
 
-    static func ensureNetwork(named name: String) async throws {
+    nonisolated static func ensureNetwork(named name: String) async throws {
         let client = NetworkClient()
         let existing = try await client.list()
         guard !existing.contains(where: { $0.name == name }) else { return }
@@ -122,7 +134,7 @@ enum StackOrchestrator {
         _ = try await client.create(configuration: config)
     }
 
-    static func resolve(_ value: String, ips: [String: String]) -> String {
+    nonisolated static func resolve(_ value: String, ips: [String: String]) -> String {
         var result = value
         for (key, ip) in ips {
             result = result.replacingOccurrences(of: StackToken.ip(key), with: ip)

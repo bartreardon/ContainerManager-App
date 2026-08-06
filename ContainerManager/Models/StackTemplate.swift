@@ -34,15 +34,15 @@ struct StackSpec {
 }
 
 enum StackLabels {
-    static let stack = "com.containermanager.stack"
-    static let role = "com.containermanager.stack.role"
-    static let url = "com.containermanager.stack.url"
+    nonisolated static let stack = "com.containermanager.stack"
+    nonisolated static let role = "com.containermanager.stack.role"
+    nonisolated static let url = "com.containermanager.stack.url"
 }
 
 /// Token used inside service env to reference another service's runtime IP, e.g.
 /// `WORDPRESS_DB_HOST=${IP:db}:3306`.
 enum StackToken {
-    static func ip(_ key: String) -> String { "${IP:\(key)}" }
+    nonisolated static func ip(_ key: String) -> String { "${IP:\(key)}" }
 }
 
 // MARK: - Data-driven templates

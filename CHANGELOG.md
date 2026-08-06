@@ -23,6 +23,11 @@ All notable changes to ContainerManager.
 - **Creating a stack shows progress immediately.** The sheet scrolls to the progress log when you hit Create and seeds a first line, instead of appearing to hang while the first image downloads.
 
 ### Fixed
+- **Creating a stack no longer freezes the app.** Image pull, unpack and container creation ran on the main actor (the target defaults every type to `MainActor`, and the orchestrator was explicitly annotated too), so the create sheet couldn't repaint or scroll for the whole run. That work now runs off the main actor, with only progress callbacks hopping back.
+- **The progress log stays in view.** The sheet scrolled to the log once when the run started, then the log box grew line by line and slid below the fold. The log and status areas are now fixed-height, and the sheet re-pins to them as they update.
+- **A create sheet says what happened.** A failed run left "Cancel" beside a re-armed "Create", as though nothing had occurred — while services created before the failure were in fact running. Both sheets now report "Created N of M services" with the reason, and offer **Close** (plus **Retry** on failure) instead.
+- **Stacks are checked before anything is created.** Missing host bind paths, mount paths left empty by an unset variable, invalid port mappings, and missing images are all reported together up front, instead of standing up half a stack and failing on the last service.
+- **Replacing a service kept the whole command.** The runtime stores a container's executable separately from its arguments, so the prefill dropped `argv[0]` — `sh -c "…"` came back as `-c "…"` and the container failed to start.
 - **Pasting a docker-compose file into the Build Image sheet** produced a cryptic `unknown instruction: services:` from the builder. It's now detected up front, pointing at Stacks ▸ New Stack ▸ Import Template… instead.
 
 ## 1.0.6 — 2026-06-30

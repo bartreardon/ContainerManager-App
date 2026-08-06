@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct CustomStackSheet: View {
+    private static let runSectionID = "run"
+
     @Environment(\.dismiss) private var dismiss
     @Environment(StacksStore.self) private var store
 
@@ -27,7 +29,24 @@ struct CustomStackSheet: View {
     @State private var progress = GuiProgress()
     @State private var log: [String] = []
     @State private var isRunning = false
-    @State private var finished = false
+    @State private var outcome: Outcome?
+
+    /// Mirrors TemplateStackSheet: a run that fails partway leaves real containers
+    /// behind, so the sheet reports what happened instead of re-arming "Create".
+    private enum Outcome {
+        case succeeded
+        case failed(created: Int, total: Int, message: String)
+    }
+
+    private var succeeded: Bool {
+        if case .succeeded = outcome { return true }
+        return false
+    }
+
+    private var failure: (created: Int, total: Int, message: String)? {
+        guard case .failed(let created, let total, let message) = outcome else { return nil }
+        return (created, total, message)
+    }
     @State private var resultURL: URL?
     @State private var error: PresentedError?
 
@@ -38,6 +57,7 @@ struct CustomStackSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            ScrollViewReader { proxy in
             Form {
                 Section("Stack") {
                     TextField("Name", text: $name, prompt: Text("mystack"))
@@ -70,29 +90,60 @@ struct CustomStackSheet: View {
                         Text(error.message).foregroundStyle(.red).font(.callout)
                     }
                 }
-                if isRunning || finished || !log.isEmpty {
+                if let failure {
                     Section {
-                        StackRunView(log: log, progress: progress, isRunning: isRunning, finished: finished, resultURL: resultURL)
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Created \(failure.created) of \(failure.total) services")
+                                    .fontWeight(.medium)
+                                Text(failure.message).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
                     }
+                }
+                if isRunning || outcome != nil || !log.isEmpty {
+                    Section {
+                        StackRunView(log: log, progress: progress, isRunning: isRunning, finished: succeeded, resultURL: resultURL)
+                    }
+                    .id(Self.runSectionID)
                 }
             }
             .formStyle(.grouped)
             .disabled(isRunning)
+            .onChange(of: isRunning) {
+                guard isRunning else { return }
+                withAnimation { proxy.scrollTo(Self.runSectionID, anchor: .bottom) }
+            }
+            .onChange(of: log.count) { proxy.scrollTo(Self.runSectionID, anchor: .bottom) }
+            .onChange(of: outcome != nil) { proxy.scrollTo(Self.runSectionID, anchor: .bottom) }
+            }
 
             Divider()
 
             HStack {
                 Spacer()
-                Button(finished ? "Done" : "Cancel") { dismiss() }
-                if !finished {
+                if outcome == nil {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isRunning)
                     Button("Create") { Task { await run() } }
                         .buttonStyle(.borderedProminent)
                         .disabled(isRunning || !isValid)
+                } else {
+                    if failure != nil {
+                        Button("Retry") { Task { await run() } }
+                            .disabled(isRunning)
+                    }
+                    Button("Close") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isRunning)
                 }
             }
             .padding(14)
         }
         .frame(width: 520)
+        .frame(minHeight: 360, maxHeight: 620)
     }
 
     @ViewBuilder
@@ -156,10 +207,15 @@ struct CustomStackSheet: View {
             resultURL = try await StackOrchestrator.run(spec: spec, progress: progress) { line in
                 log.append(line)
             }
-            finished = true
+            outcome = .succeeded
             await store.refresh()
         } catch {
-            self.error = PresentedError(title: "Failed to create stack", error: error)
+            await store.refresh()
+            let created = store.stack(named: spec.name)?.services.count ?? 0
+            log.append("Failed: \(PresentedError.describe(error))")
+            outcome = .failed(
+                created: created, total: spec.services.count,
+                message: PresentedError.describe(error))
         }
         isRunning = false
     }

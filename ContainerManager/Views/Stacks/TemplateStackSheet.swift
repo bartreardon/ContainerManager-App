@@ -21,9 +21,26 @@ struct TemplateStackSheet: View {
     @State private var progress = GuiProgress()
     @State private var log: [String] = []
     @State private var isRunning = false
-    @State private var finished = false
+    @State private var outcome: Outcome?
     @State private var resultURL: URL?
     @State private var error: PresentedError?
+
+    /// How a create run ended. A run that fails partway leaves real containers behind,
+    /// so the sheet has to say what happened rather than just re-arming "Create".
+    private enum Outcome {
+        case succeeded
+        case failed(created: Int, total: Int, message: String)
+    }
+
+    private var succeeded: Bool {
+        if case .succeeded = outcome { return true }
+        return false
+    }
+
+    private var failure: (created: Int, total: Int, message: String)? {
+        guard case .failed(let created, let total, let message) = outcome else { return nil }
+        return (created, total, message)
+    }
 
     init(template: StackTemplateDef) {
         self.template = template
@@ -52,9 +69,24 @@ struct TemplateStackSheet: View {
                             Text(error.message).foregroundStyle(.red).font(.callout)
                         }
                     }
-                    if isRunning || finished || !log.isEmpty {
+                    if let failure {
                         Section {
-                            StackRunView(log: log, progress: progress, isRunning: isRunning, finished: finished, resultURL: resultURL)
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Created \(failure.created) of \(failure.total) services")
+                                        .fontWeight(.medium)
+                                    Text(failure.message)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    if isRunning || outcome != nil || !log.isEmpty {
+                        Section {
+                            StackRunView(log: log, progress: progress, isRunning: isRunning, finished: succeeded, resultURL: resultURL)
                         }
                         .id(Self.runSectionID)
                     }
@@ -66,6 +98,14 @@ struct TemplateStackSheet: View {
                 .onChange(of: isRunning) {
                     guard isRunning else { return }
                     withAnimation { proxy.scrollTo(Self.runSectionID, anchor: .bottom) }
+                }
+                // Re-pin as the run section fills in: scrolling once at the start left
+                // the progress below the fold as soon as content arrived.
+                .onChange(of: log.count) {
+                    proxy.scrollTo(Self.runSectionID, anchor: .bottom)
+                }
+                .onChange(of: outcome != nil) {
+                    proxy.scrollTo(Self.runSectionID, anchor: .bottom)
                 }
             }
 
@@ -79,16 +119,30 @@ struct TemplateStackSheet: View {
                 Button("Import .env…") { importEnvValues() }
                     .help("Fill the fields above from an env file (KEY=value per line)")
                 Spacer()
-                Button(finished ? "Done" : "Cancel") { dismiss() }
-                if !finished {
+                if outcome == nil {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isRunning)
                     Button("Create") { Task { await run() } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isRunning)
+                } else {
+                    // The run is over either way — "Cancel" would be a lie, and a
+                    // re-armed "Create" reads as though it still needs pressing.
+                    if failure != nil {
+                        Button("Retry") { Task { await run() } }
+                            .disabled(isRunning)
+                    }
+                    Button("Close") { dismiss() }
                         .buttonStyle(.borderedProminent)
                         .disabled(isRunning)
                 }
             }
             .padding(14)
         }
+        // Bounded so the form scrolls once the run log appears, instead of growing the
+        // sheet past the screen and stranding the buttons.
         .frame(width: 500)
+        .frame(minHeight: 360, maxHeight: 620)
     }
 
     @ViewBuilder
@@ -169,10 +223,13 @@ struct TemplateStackSheet: View {
 
     private func run() async {
         error = nil
+        outcome = nil
         let spec: StackSpec
         do {
             spec = try template.build(values)
         } catch {
+            // Nothing ran, so this stays a plain field error — Create is still the
+            // right next step once the values are fixed.
             self.error = PresentedError(title: "Invalid configuration", error: error)
             return
         }
@@ -191,10 +248,18 @@ struct TemplateStackSheet: View {
                 StackDefinitionStore.save(
                     StackDefinition(document: document, values: values), for: spec.name)
             }
-            finished = true
+            outcome = .succeeded
             await store.refresh()
         } catch {
-            self.error = PresentedError(title: "Failed to create stack", error: error)
+            // A failure partway leaves the services created so far running, so report
+            // how far it got rather than implying nothing happened.
+            await store.refresh()
+            let created = store.stack(named: spec.name)?.services.count ?? 0
+            log.append("Failed: \(PresentedError.describe(error))")
+            outcome = .failed(
+                created: created,
+                total: spec.services.count,
+                message: PresentedError.describe(error))
         }
         isRunning = false
     }

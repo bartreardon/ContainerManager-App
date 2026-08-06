@@ -19,7 +19,7 @@ enum ContainerLauncher {
     /// Creates a container from a spec and optionally starts it detached.
     /// Returns the container id. On a start-phase failure the partial container is deleted.
     @discardableResult
-    static func create(spec: ContainerCreateSpec, progress: GuiProgress, start: Bool) async throws -> String {
+    nonisolated static func create(spec: ContainerCreateSpec, progress: GuiProgress, start: Bool) async throws -> String {
         let systemConfig = try await ConfigurationLoader.load()
         let client = ContainerClient()
 
@@ -76,7 +76,7 @@ enum ContainerLauncher {
             throw error
         }
 
-        progress.setPhase("Creating container")
+        await progress.setPhase("Creating container")
         try await client.create(
             configuration: configuration,
             options: ContainerCreateOptions(autoRemove: spec.autoRemove),
@@ -85,7 +85,7 @@ enum ContainerLauncher {
         )
 
         if start {
-            progress.setPhase("Starting container")
+            await progress.setPhase("Starting container")
             do {
                 try await startDetached(id: id, client: client)
             } catch {
@@ -98,7 +98,7 @@ enum ContainerLauncher {
     }
 
     /// Starts an already-created container in the background.
-    static func startDetached(id: String, tty: Bool = false, client: ContainerClient = ContainerClient()) async throws {
+    nonisolated static func startDetached(id: String, tty: Bool = false, client: ContainerClient = ContainerClient()) async throws {
         let io = try ProcessIO.create(tty: tty, interactive: false, detach: true)
         defer { try? io.close() }
 

@@ -30,41 +30,49 @@ struct StackRunView: View {
                         }
                         .padding(6)
                     }
-                    .frame(maxHeight: 120)
+                    // Fixed, not max: with maxHeight the box grew as lines arrived, so
+                    // the enclosing form scrolled to a target that then moved below the
+                    // fold. A stable height keeps the run area where it was scrolled to.
+                    .frame(height: 120)
                     .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
                     .onChange(of: log.count) { proxy.scrollTo("end") }
                 }
             }
-            if isRunning {
-                if let fraction = progress.fraction {
-                    ProgressView(value: fraction) {
-                        Text(progress.phase).font(.caption)
+            // One status area of a stable height, so the section doesn't grow (and shift
+            // the scroll position) as the detail line or the result row appear.
+            VStack(alignment: .leading, spacing: 2) {
+                if isRunning {
+                    if let fraction = progress.fraction {
+                        ProgressView(value: fraction) {
+                            Text(progress.phase.isEmpty ? "Working — please wait…" : progress.phase)
+                                .font(.caption)
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text(progress.phase.isEmpty ? "Working — please wait…" : progress.phase)
+                                .font(.caption)
+                        }
                     }
-                } else {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text(progress.phase.isEmpty ? "Working…" : progress.phase).font(.caption)
+                    Text(progress.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else if let resultURL {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("Ready at \(resultURL.absoluteString)").font(.callout)
+                        Button("Open") { NSWorkspace.shared.open(resultURL) }
+                            .controlSize(.small)
                     }
-                }
-                if !progress.detail.isEmpty {
-                    Text(progress.detail).font(.caption2).foregroundStyle(.secondary)
+                } else if finished {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("Stack is up.").font(.callout)
+                    }
                 }
             }
-            if let resultURL {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Ready at \(resultURL.absoluteString)")
-                        .font(.callout)
-                    Button("Open") { NSWorkspace.shared.open(resultURL) }
-                        .controlSize(.small)
-                }
-            } else if finished {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Stack is up.")
-                        .font(.callout)
-                }
-            }
+            .frame(height: 34, alignment: .topLeading)
         }
     }
 }
