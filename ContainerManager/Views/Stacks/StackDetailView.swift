@@ -23,11 +23,29 @@ struct StackDetailView: View {
     }
 }
 
+/// Which service sheet to present: a new service, or a replacement for an existing one.
+private enum ServiceSheetKind: Identifiable {
+    case add
+    case replace(ContainerSnapshot)
+
+    var id: String {
+        switch self {
+        case .add: "add"
+        case .replace(let service): service.id
+        }
+    }
+}
+
 private struct StackDetailContent: View {
     let stack: Stack
     @Environment(StacksStore.self) private var store
+    @Environment(NetworksStore.self) private var networksStore
+    @Environment(WindowRouter.self) private var router
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
+    @State private var serviceSheet: ServiceSheetKind?
+    @State private var repairProgress = GuiProgress()
+    @State private var showLog = false
     @State private var displayName: String
     @State private var icon: String
 
@@ -41,9 +59,31 @@ private struct StackDetailContent: View {
         store.isBusy(stack.name)
     }
 
+    /// Services in the stack's saved definition that aren't present — usually one that
+    /// failed to create.
+    private var missing: [StackServiceSpec] {
+        store.missingServices(in: stack)
+    }
+
     private func save() {
         StackMetadata.set(stack.name, displayName: displayName, icon: icon)
         Task { await store.refresh() }
+    }
+
+    private func openInTerminalApp(_ id: String) {
+        Task {
+            switch await TerminalLauncher.openContainerShell(containerId: id) {
+            case .opened, .openedViaFallback:
+                break
+            case .automationDenied:
+                store.lastError = PresentedError(
+                    title: "Terminal access needed",
+                    message: "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
+                )
+            case .failed(let message):
+                store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
+            }
+        }
     }
 
     var body: some View {
@@ -98,7 +138,7 @@ private struct StackDetailContent: View {
                     .disabled(!stack.anyRunning)
                 }
             }
-            Section("Services") {
+            Section {
                 ForEach(stack.services, id: \.id) { service in
                     HStack(spacing: 8) {
                         StatusDot(status: service.status)
@@ -117,6 +157,98 @@ private struct StackDetailContent: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .contextMenu {
+                        // A stack service is a normal container, so `exec` works — and
+                        // the shell sees the stack's volumes mounted.
+                        Button("Open Terminal") {
+                            router.openTerminal(id: service.id, in: .containers)
+                        }
+                        .disabled(service.status != .running)
+                        Button("Open in Terminal.app") { openInTerminalApp(service.id) }
+                            .disabled(service.status != .running)
+                        Divider()
+                        Button("Replace…") { serviceSheet = .replace(service) }
+                        Button("Remove from Stack", role: .destructive) {
+                            Task { await store.removeService(id: service.id, from: stack.name) }
+                        }
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Services")
+                    Spacer()
+                    Button {
+                        serviceSheet = .add
+                    } label: {
+                        Label("Add Service…", systemImage: "plus")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Add a service to this stack, or re-create one that failed")
+                }
+            }
+
+            if !missing.isEmpty {
+                Section {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(missing.count) service\(missing.count == 1 ? "" : "s") missing")
+                                .fontWeight(.medium)
+                            Text(missing.map(\.key).joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if isBusy {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Button("Re-create") {
+                                Task { await store.recreateMissingServices(in: stack, progress: repairProgress) }
+                            }
+                        }
+                    }
+                } footer: {
+                    Text("These are defined in the stack's saved definition but aren't running. Re-creating uses the settings it was created with.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                LabeledContent("Name", value: stack.networkName)
+                if let network = networksStore.network(withId: stack.networkName) {
+                    LabeledContent("Mode", value: network.configuration.mode == .hostOnly ? "Host-only" : "NAT")
+                    LabeledContent("IPv4 Subnet", value: "\(network.status.ipv4Subnet)")
+                } else {
+                    LabeledContent("Status", value: "Not created yet")
+                }
+            } header: {
+                Text("Network")
+            } footer: {
+                Text("Services reach each other by IP on this network. It's internal to this Mac — to reach a service from another device, publish a port on the service and use this Mac's address.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !stack.volumes.isEmpty {
+                Section {
+                    ForEach(stack.volumes) { volume in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(volume.name)
+                                .fontWeight(.medium)
+                            Text(volume.mounts.joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Volumes")
+                } footer: {
+                    Text("Named volumes this stack's services mount. Deleting the stack keeps them — remove them from the Volumes section if you want the data gone.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -143,6 +275,14 @@ private struct StackDetailContent: View {
                 if isBusy {
                     ProgressView().controlSize(.small)
                 }
+                if StackLog.exists(for: stack.name) {
+                    Button {
+                        showLog = true
+                    } label: {
+                        Label("Log", systemImage: "doc.text")
+                    }
+                    .help("How this stack was created, and anything the import couldn’t carry over")
+                }
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
@@ -150,6 +290,17 @@ private struct StackDetailContent: View {
                 }
                 .help("Delete the whole stack")
                 .disabled(isBusy)
+            }
+        }
+        .sheet(isPresented: $showLog) {
+            StackLogSheet(stackName: stack.name)
+        }
+        .sheet(item: $serviceSheet) { kind in
+            switch kind {
+            case .add:
+                StackServiceSheet(stackName: stack.name)
+            case .replace(let service):
+                StackServiceSheet(stackName: stack.name, replacing: service)
             }
         }
         .confirmationDialog(

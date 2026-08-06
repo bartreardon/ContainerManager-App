@@ -186,10 +186,10 @@ struct StacksListView: View {
     /// Opens the imported template's create sheet, first surfacing any compose-import
     /// caveats (what didn't carry over) in an app-modal alert.
     private func present(_ template: StackTemplateDef) {
-        if let document = template.document, let caveats = ComposeImporter.caveats(in: document) {
+        if let document = template.document, let summary = ComposeImporter.caveats(in: document) {
             let alert = NSAlert()
-            alert.messageText = "Imported with caveats"
-            alert.informativeText = caveats
+            alert.messageText = ComposeImporter.hasLosses(summary) ? "Imported with caveats" : "Imported"
+            alert.informativeText = summary
             alert.runModal()
         }
         presentedSheet = .template(template)

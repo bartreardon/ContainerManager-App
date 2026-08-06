@@ -2,6 +2,34 @@
 
 All notable changes to ContainerManager.
 
+## 1.0.8 — 2026-08-05
+
+### New
+- **Environment variables when building an image.** The Build Image sheet has an **Environment** switch that reveals a `KEY=value` field, with **Import from File…** to load a `.env` file (the format `--env-file` accepts — comments, `export`, and quoted values are handled). Values are applied both ways: passed as `--build-arg` for Dockerfiles that declare matching `ARG`s, and baked into the image as `ENV` defaults so containers run from it inherit them. Saved builds remember their env.
+- **Import an env file when running a container.** The container create sheet's Environment field gains the same **Import from File…** button.
+- **Edit a stack's services.** A stack's detail view gains **Add Service…**, plus **Replace…** and **Remove from Stack** on each service. Replacing re-creates a service with new settings — the way to repair one that failed to create — carrying over the stack's labels, network, and web URL, and leaving named volumes untouched.
+- **Stacks keep a log of how they were built.** A **Log** button on a stack shows what its import couldn't carry over, the full creation transcript including readiness waits and any failure, and services added or replaced since — the import summary previously appeared once in an alert and was then gone. Stored beside the stack's definition and removed with it.
+- **Stacks list the volumes they use.** A **Volumes** section shows each named volume the stack mounts and which service mounts it where, so the association is visible without cross-referencing creation dates in the Volumes section.
+
+### Changed
+- **Compose import understands `${VAR}` and `command:`.** Compose files that interpolate variables (`MYSQL_PASSWORD=${MYSQL_PASSWORD}`) previously failed to import, because `${…}` clashed with the stack format's own field syntax. Each variable now becomes a field on the create sheet, prefilled from a `.env` sitting next to the compose file, with password-like names masked; `${VAR:-default}` is honoured. A service's `command:` (string or list form) is also carried through instead of being dropped, so images that need one — Fleet, Redis with flags — import intact.
+- Commands are now split with quotes respected, so `sh -c "a && b"` stays a single argument instead of being torn apart on spaces.
+- **Compose `platform:` is honoured.** Apple silicon can run `linux/amd64` images under emulation, so a service pinned to x86 now carries that through instead of failing with "image … does not support required platforms". Compose's `linux/x86_64` spelling is translated to the OCI `linux/amd64`.
+- **Group volumes by label.** The Volumes list groups into collapsible sections so it's clear what belongs together, instead of guessing from creation dates. A volume's group comes from a label you set (right-click one or several → **Set Label…** / **Group N Volumes…**), a label recorded on the volume itself, or — while the stack is running — the stack that mounts it. Stacks now claim their named volumes up front so the association is written to the volume as a real label, surviving deletion of the stack. Right-clicking a group header acts on the whole group: select, relabel, or delete it.
+- **Stacks remember what they were created from.** The definition and the values entered at create time — including anything pulled in from a compose file's `.env` — are saved with the stack. A stack that's missing services (one that failed to create) now shows them with a **Re-create** action that rebuilds them exactly as defined, and the service sheet can **Prefill from definition** instead of retyping image, command, env, ports, volumes, and platform. The saved definition can contain credentials, so it's written owner-read-only and deleted with the stack.
+- **Stack services wait for their dependencies.** Compose's `depends_on: condition: service_healthy` can't be honoured directly, and "started" isn't "ready" — a database initialising a fresh volume can take a minute, while a dependent that connects on startup (Fleet runs `fleet prepare db` immediately) fails outright against it. Each service is now waited on until it accepts connections on the ports it exposes before the next one starts.
+- **Open a terminal into a stack service.** Right-click a service in a stack for **Open Terminal** (in-app) or **Open in Terminal.app** — the shell sees the stack's volumes mounted, so its data is inspectable in place.
+- **Creating a stack shows progress immediately.** The sheet scrolls to the progress log when you hit Create and seeds a first line, instead of appearing to hang while the first image downloads.
+- **Compose imports say *why* a key was skipped.** Instead of a bare list, each entry explains the consequence — e.g. "`restart:` — restart policies aren't supported; start the stack again if a service stops" — and the list is kept in the stack's log rather than only shown once.
+
+### Fixed
+- **Creating a stack no longer freezes the app.** Image pull, unpack and container creation ran on the main actor (the target defaults every type to `MainActor`, and the orchestrator was explicitly annotated too), so the create sheet couldn't repaint or scroll for the whole run. That work now runs off the main actor, with only progress callbacks hopping back.
+- **The progress log stays in view.** The sheet scrolled to the log once when the run started, then the log box grew line by line and slid below the fold. The log and status areas are now fixed-height, and the sheet re-pins to them as they update.
+- **A create sheet says what happened.** A failed run left "Cancel" beside a re-armed "Create", as though nothing had occurred — while services created before the failure were in fact running. Both sheets now report "Created N of M services" with the reason, and offer **Close** (plus **Retry** on failure) instead.
+- **Stacks are checked before anything is created.** Missing host bind paths, mount paths left empty by an unset variable, invalid port mappings, and missing images are all reported together up front, instead of standing up half a stack and failing on the last service.
+- **Replacing a service kept the whole command.** The runtime stores a container's executable separately from its arguments, so the prefill dropped `argv[0]` — `sh -c "…"` came back as `-c "…"` and the container failed to start.
+- **Pasting a docker-compose file into the Build Image sheet** produced a cryptic `unknown instruction: services:` from the builder. It's now detected up front, pointing at Stacks ▸ New Stack ▸ Import Template… instead.
+
 ## 1.0.7 — 2026-07-21
 
 ### New

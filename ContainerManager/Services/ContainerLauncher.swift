@@ -19,7 +19,7 @@ enum ContainerLauncher {
     /// Creates a container from a spec and optionally starts it detached.
     /// Returns the container id. On a start-phase failure the partial container is deleted.
     @discardableResult
-    static func create(spec: ContainerCreateSpec, progress: GuiProgress, start: Bool) async throws -> String {
+    nonisolated static func create(spec: ContainerCreateSpec, progress: GuiProgress, start: Bool) async throws -> String {
         let systemConfig = try await ConfigurationLoader.load()
         let client = ContainerClient()
 
@@ -39,13 +39,14 @@ enum ContainerLauncher {
         management.volumes = spec.volumes
         management.labels = spec.labels
         management.remove = spec.autoRemove
+        // Takes precedence over --os/--arch; lets an amd64-only image run under emulation.
+        management.platform = spec.platform
 
         var processFlags = try Flags.Process.parse([])
         processFlags.env = spec.env
 
-        let arguments = spec.command
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
+        // Quote-aware so `sh -c "a && b"` stays three arguments.
+        let arguments = ShellWords.split(spec.command)
 
         let configuration: ContainerConfiguration
         let kernel: Kernel
@@ -75,7 +76,7 @@ enum ContainerLauncher {
             throw error
         }
 
-        progress.setPhase("Creating container")
+        await progress.setPhase("Creating container")
         try await client.create(
             configuration: configuration,
             options: ContainerCreateOptions(autoRemove: spec.autoRemove),
@@ -84,7 +85,7 @@ enum ContainerLauncher {
         )
 
         if start {
-            progress.setPhase("Starting container")
+            await progress.setPhase("Starting container")
             do {
                 try await startDetached(id: id, client: client)
             } catch {
@@ -97,7 +98,7 @@ enum ContainerLauncher {
     }
 
     /// Starts an already-created container in the background.
-    static func startDetached(id: String, tty: Bool = false, client: ContainerClient = ContainerClient()) async throws {
+    nonisolated static func startDetached(id: String, tty: Bool = false, client: ContainerClient = ContainerClient()) async throws {
         let io = try ProcessIO.create(tty: tty, interactive: false, detach: true)
         defer { try? io.close() }
 

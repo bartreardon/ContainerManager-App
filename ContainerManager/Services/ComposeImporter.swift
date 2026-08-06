@@ -38,7 +38,8 @@ enum ComposeImporter {
     }
 
     static let supportedServiceKeys: Set<String> = [
-        "image", "environment", "ports", "volumes", "depends_on", "container_name",
+        "image", "environment", "ports", "volumes", "depends_on", "container_name", "command",
+        "platform",
     ]
 
     static func document(at url: URL) throws -> StackTemplateDocument {
@@ -50,7 +51,12 @@ enum ComposeImporter {
             throw ComposeError.noServices
         }
 
-        var ignored: Set<String> = Set(top.keys.filter { !["services", "version", "name", "volumes", "networks"].contains($0) }.map { "\($0):" })
+        // Item → why it couldn't be carried over. A bare list of keys leaves you
+        // guessing whether each one mattered.
+        var ignored: [String: String] = [:]
+        for key in top.keys where !["services", "version", "name", "volumes", "networks"].contains(key) {
+            ignored["\(key):"] = reason(forKey: key)
+        }
         let serviceKeys = Set(services.keys)
         let baseName = url.deletingPathExtension().lastPathComponent.sanitizedResourceName
 
@@ -63,25 +69,31 @@ enum ComposeImporter {
                 // A `build:` service can't be represented — skip it and report, rather
                 // than failing the whole import (other services may be fine).
                 if service["build"] != nil {
-                    ignored.insert("\(key) (build:)")
+                    ignored["\(key) (build:)"] =
+                        "images must be built first; use Images ▸ Build Image…, then reference the tag with image:"
                     continue
                 }
                 throw ComposeError.missingImage(key)
             }
             for unsupported in service.keys where !supportedServiceKeys.contains(unsupported) {
-                ignored.insert("\(key).\(unsupported):")
+                ignored["\(key).\(unsupported):"] = reason(forKey: unsupported)
             }
 
             let env = environment(service["environment"]).map {
                 rewriteServiceReferences(in: $0, services: serviceKeys)
             }
             let (volumeSpecs, skippedAnonymous) = volumeStrings(service["volumes"])
-            if skippedAnonymous { ignored.insert("\(key) anonymous volume") }
+            if skippedAnonymous {
+                ignored["\(key) anonymous volume"] =
+                    "a mount with no source can't be named; give it a volume name or a host path"
+            }
             let volumes = volumeSpecs.compactMap {
                 resolveVolume($0, relativeTo: url.deletingLastPathComponent())
             }
             let ports = portStrings(service["ports"])
             dependencies[key] = dependsOn(service["depends_on"])
+
+            let command = commandString(service["command"])
 
             specs.append(
                 StackTemplateDocument.Service(
@@ -90,7 +102,9 @@ enum ComposeImporter {
                     image: image,
                     env: env.isEmpty ? nil : env,
                     volumes: volumes.isEmpty ? nil : volumes,
-                    publishPorts: ports.isEmpty ? nil : ports
+                    publishPorts: ports.isEmpty ? nil : ports,
+                    command: command.isEmpty ? nil : command,
+                    platform: normalizedPlatform(service["platform"])
                 ))
         }
 
@@ -98,44 +112,82 @@ enum ComposeImporter {
 
         specs = try sortedByDependencies(specs, dependencies: dependencies)
 
-        // First published "host:container" port on the last-started service that has
-        // one → the web "Open in Browser" affordance.
+        // Compose's `${VAR}` interpolation uses the same syntax as our own template
+        // fields, so turn each variable into a field rather than choking on it.
+        let variables = extractVariables(in: &specs)
+        let envDefaults = envFileDefaults(beside: url)
+
+        // First published port on the last-started service → the "Open in Browser"
+        // affordance. In `[host-ip:]host:container[/proto]` the host port is the
+        // second-to-last component.
         var web: StackTemplateDocument.Web?
         var webPortDefault: String?
         for service in specs.reversed() {
-            if let hostPort = service.publishPorts?.first?.split(separator: ":").first.map(String.init),
-                Int(hostPort) != nil {
+            guard let published = service.publishPorts?.first else { continue }
+            let parts = published.split(separator: ":").map(String.init)
+            guard parts.count >= 2 else { continue }
+            let hostPort = parts[parts.count - 2]
+            if Int(hostPort) != nil {
                 web = StackTemplateDocument.Web(serviceKey: service.key, portField: "port")
                 webPortDefault = hostPort
                 break
             }
+            // A `${VAR}` host port already has a field of its own — point at that.
+            if hostPort.hasPrefix("${"), hostPort.hasSuffix("}") {
+                let name = String(hostPort.dropFirst(2).dropLast())
+                if variables[name] != nil {
+                    web = StackTemplateDocument.Web(serviceKey: service.key, portField: name)
+                    break
+                }
+            }
         }
-        // The web port stays a template field so each deployment can pick its own;
-        // the published mapping is rewritten to reference it.
-        if let web, let webPortDefault {
+        // A literal web port becomes a template field so each deployment can pick its
+        // own; the published mapping is rewritten to reference it.
+        if let web, web.portField == "port" {
             specs = specs.map { service in
                 var service = service
                 if service.key == web.serviceKey, var ports = service.publishPorts, !ports.isEmpty {
-                    let container = ports[0].split(separator: ":").dropFirst().joined(separator: ":")
-                    ports[0] = "${port}:\(container)"
+                    var parts = ports[0].split(separator: ":").map(String.init)
+                    parts[parts.count - 2] = "${port}"
+                    ports[0] = parts.joined(separator: ":")
                     service.publishPorts = ports
                 }
                 return service
             }
-            _ = webPortDefault
         }
 
         var fields = [
             StackTemplateDocument.Field(key: "name", label: "Stack name", placeholder: baseName, default: baseName)
         ]
-        if web != nil {
+        if web?.portField == "port" {
             fields.append(
                 StackTemplateDocument.Field(key: "port", label: "Web port", placeholder: webPortDefault, default: webPortDefault, kind: "port"))
         }
+        for name in variables.keys.sorted() {
+            let value = envDefaults[name] ?? variables[name] ?? ""
+            fields.append(
+                StackTemplateDocument.Field(
+                    key: name,
+                    label: name,
+                    placeholder: value.isEmpty ? nil : value,
+                    default: value,
+                    kind: isSecret(name) ? "password" : nil
+                ))
+        }
 
         var notes = "Imported from \(url.lastPathComponent)."
+        if !variables.isEmpty {
+            let prefilled = variables.keys.filter { envDefaults[$0] != nil }.count
+            if prefilled > 0 {
+                notes += " Prefilled \(prefilled) of \(variables.count) variables from the .env beside it."
+            } else {
+                notes +=
+                    " Found \(variables.count) variables with no .env beside the compose file — enter them on the next screen, or use “Import .env…” there."
+            }
+        }
         if !ignored.isEmpty {
-            notes += " Not imported: \(ignored.sorted().joined(separator: ", "))."
+            let entries = ignored.sorted { $0.key < $1.key }.map { "• \($0.key) — \($0.value)" }
+            notes += "\n\nNot imported:\n" + entries.joined(separator: "\n")
         }
 
         return StackTemplateDocument(
@@ -151,10 +203,19 @@ enum ComposeImporter {
         )
     }
 
-    /// Human-readable summary of what didn't carry over, for the post-import alert.
+    /// Human-readable summary of what didn't carry over — and how variables were
+    /// resolved — for the post-import alert.
     static func caveats(in document: StackTemplateDocument) -> String? {
-        guard let notes = document.notes, notes.contains("Not imported:") else { return nil }
+        guard let notes = document.notes,
+            notes.contains("Not imported:") || notes.contains("variables")
+        else { return nil }
         return notes
+    }
+
+    /// True when the summary reports something that was dropped (as opposed to only
+    /// reporting how variables were filled in).
+    static func hasLosses(_ summary: String) -> Bool {
+        summary.contains("Not imported:")
     }
 
     // MARK: Helpers
@@ -169,6 +230,128 @@ enum ComposeImporter {
 
     private static func stringList(_ raw: Any?) -> [String] {
         (raw as? [Any])?.map { "\($0)" } ?? []
+    }
+
+    /// Compose `command:` is either a string (`sh -c "…"`) or an argv list.
+    private static func commandString(_ raw: Any?) -> String {
+        if let string = raw as? String { return string }
+        if let list = raw as? [Any] { return ShellWords.join(list.map { "\($0)" }) }
+        return ""
+    }
+
+    /// Why a compose key couldn't be carried over. Says what the consequence is, so the
+    /// summary is actionable rather than a list of things that were silently dropped.
+    private static func reason(forKey key: String) -> String {
+        switch key {
+        case "restart", "deploy":
+            "restart policies aren't supported; start the stack again if a service stops"
+        case "healthcheck":
+            "health probes aren't run; dependants wait for the port to accept connections instead"
+        case "cap_add", "cap_drop", "privileged", "security_opt":
+            "capability and privilege changes aren't supported"
+        case "networks", "network_mode", "links", "dns", "extra_hosts":
+            "every service shares one stack network and reaches the others by IP"
+        case "profiles":
+            "profiles aren't evaluated — all services were imported"
+        case "env_file":
+            "referenced env files aren't read; use “Import .env…” on the create sheet"
+        case "extends", "include":
+            "composing files together isn't supported; flatten it into this file"
+        case "entrypoint":
+            "entrypoint overrides aren't supported; fold it into command:"
+        case "secrets", "configs":
+            "secrets and configs aren't supported; pass values as environment variables"
+        case "devices", "sysctls", "ulimits", "userns_mode", "cgroup_parent":
+            "host and kernel tuning isn't supported"
+        case "logging":
+            "logging drivers aren't configurable; output is available from the container"
+        case "user":
+            "running as a different user isn't supported"
+        case "working_dir":
+            "the working directory can't be overridden; set it in the image"
+        case "depends_on":
+            "only ordering is honoured, not conditions"
+        default:
+            key.hasPrefix("x-") ? "an extension field, not part of the spec" : "not supported"
+        }
+    }
+
+    /// Compose `platform:` written in `uname -m` terms (`linux/x86_64`) into the OCI
+    /// spelling `container` expects (`linux/amd64`). Apple silicon runs amd64 images
+    /// under emulation, so these are worth carrying through rather than dropping.
+    private static func normalizedPlatform(_ raw: Any?) -> String? {
+        guard let value = (raw as? String)?.trimmingCharacters(in: .whitespaces), !value.isEmpty else {
+            return nil
+        }
+        return
+            value
+            .replacingOccurrences(of: "x86_64", with: "amd64")
+            .replacingOccurrences(of: "aarch64", with: "arm64")
+    }
+
+    /// Names that should be entered as passwords rather than plain text.
+    private static func isSecret(_ name: String) -> Bool {
+        let upper = name.uppercased()
+        return ["PASSWORD", "SECRET", "TOKEN", "PRIVATE_KEY"].contains { upper.contains($0) }
+    }
+
+    /// Rewrites every `${VAR}` / `${VAR:-default}` found in the services down to
+    /// `${VAR}`, and returns the variables discovered with any inline defaults.
+    /// `${IP:…}` tokens are ours, generated above, and are left alone.
+    private static func extractVariables(
+        in specs: inout [StackTemplateDocument.Service]
+    ) -> [String: String] {
+        var found: [String: String] = [:]
+
+        func rewrite(_ string: String) -> String {
+            var result = ""
+            var rest = Substring(string)
+            while let start = rest.range(of: "${") {
+                result += rest[..<start.lowerBound]
+                guard let end = rest[start.upperBound...].firstIndex(of: "}") else {
+                    return result + rest[start.lowerBound...]
+                }
+                let token = String(rest[start.upperBound..<end])
+                if token.hasPrefix("IP:") {
+                    result += "${\(token)}"
+                } else {
+                    var name = token
+                    var fallback = ""
+                    if let separator = token.range(of: ":-") {
+                        name = String(token[..<separator.lowerBound])
+                        fallback = String(token[separator.upperBound...])
+                    }
+                    if found[name, default: ""].isEmpty { found[name] = fallback }
+                    result += "${\(name)}"
+                }
+                rest = rest[rest.index(after: end)...]
+            }
+            return result + rest
+        }
+
+        specs = specs.map { service in
+            var service = service
+            service.image = rewrite(service.image)
+            service.command = service.command.map(rewrite)
+            service.env = service.env?.map(rewrite)
+            service.volumes = service.volumes?.map(rewrite)
+            service.publishPorts = service.publishPorts?.map(rewrite)
+            return service
+        }
+        return found
+    }
+
+    /// Values from a `.env` sitting next to the compose file — the same file compose
+    /// itself would interpolate from — used to prefill the generated fields.
+    private static func envFileDefaults(beside url: URL) -> [String: String] {
+        let envURL = url.deletingLastPathComponent().appendingPathComponent(".env")
+        guard let text = try? String(contentsOf: envURL, encoding: .utf8) else { return [:] }
+        var values: [String: String] = [:]
+        for entry in EnvFile.parse(text) {
+            guard let separator = entry.firstIndex(of: "=") else { continue }
+            values[String(entry[..<separator])] = String(entry[entry.index(after: separator)...])
+        }
+        return values
     }
 
     /// `volumes` entries: short-form strings, or long-form dicts
