@@ -203,6 +203,14 @@ struct CustomStackSheet: View {
             webPort: webPort
         )
 
+        // Record what this was built from, the same as a template-based stack, so it can
+        // be repaired and kept pointing at its dependencies' current addresses.
+        let document = StackTemplateDocument.describing(
+            spec, id: spec.name, name: spec.name, summary: "Built with the custom stack builder")
+        StackDefinitionStore.save(
+            StackDefinition(document: document, values: ["name": spec.name, "port": spec.webPort.map(String.init) ?? ""]),
+            for: spec.name)
+
         do {
             resultURL = try await StackOrchestrator.run(spec: spec, progress: progress) { line in
                 log.append(line)
@@ -212,11 +220,16 @@ struct CustomStackSheet: View {
         } catch {
             await store.refresh()
             let created = store.stack(named: spec.name)?.services.count ?? 0
+            if created == 0 {
+                StackDefinitionStore.delete(for: spec.name)
+                StackLog.delete(for: spec.name)
+            }
             log.append("Failed: \(PresentedError.describe(error))")
             outcome = .failed(
                 created: created, total: spec.services.count,
                 message: PresentedError.describe(error))
         }
+        StackLog.append(section: "Create", lines: log, to: spec.name)
         isRunning = false
     }
 

@@ -4,6 +4,14 @@ This release is mostly about **stacks**, driven by running a real-world
 `docker-compose` setup (FleetDM) end to end and fixing everything that got in the
 way.
 
+> **1.0.8-1** replaces the original 1.0.8 build. Restarting a stack used to break
+> the services in it: they address each other by IP, and the runtime reassigns
+> those addresses as containers start, so dependants were left calling addresses
+> that no longer existed. Starting a stack now brings services up in dependency
+> order and re-creates any whose addresses have gone stale, changing only the
+> address entries so hand-made edits survive. Creating or starting a stack also
+> no longer waits on the last service when nothing depends on it.
+
 ## New
 
 **Compose files that actually run.** Imports now handle the things that

@@ -85,6 +85,50 @@ struct StackTemplateDocument: Codable {
         return document
     }
 
+    /// Builds a document from an already-resolved plan, so a stack assembled directly
+    /// (rather than from a template) still records what it was built from — which is
+    /// what lets it be repaired and kept pointing at its dependencies' current
+    /// addresses.
+    ///
+    /// The plan's values are literal apart from `${IP:…}`, which must survive, so the
+    /// only field is the stack name. A literal value containing `${` would otherwise
+    /// read as a placeholder, so those are escaped out.
+    static func describing(_ spec: StackSpec, id: String, name: String, summary: String) -> StackTemplateDocument {
+        func literal(_ value: String) -> String {
+            value.contains("${IP:") ? value : value.replacingOccurrences(of: "${", with: "$ {")
+        }
+        var fields = [Field(key: "name", label: "Stack name", placeholder: spec.name, default: spec.name)]
+        // `web.portField` has to name a field that resolves to a number, so the web port
+        // is carried as one; without it the "Open in Browser" address would be lost.
+        var web: Web?
+        if let serviceKey = spec.webServiceKey, let port = spec.webPort {
+            fields.append(
+                Field(key: "port", label: "Web port", default: String(port), kind: "port"))
+            web = Web(serviceKey: serviceKey, portField: "port")
+        }
+
+        return StackTemplateDocument(
+            version: currentVersion,
+            id: id,
+            name: name,
+            summary: summary,
+            systemImage: nil,
+            notes: nil,
+            fields: fields,
+            services: spec.services.map { service in
+                Service(
+                    key: service.key,
+                    displayName: service.displayName,
+                    image: literal(service.image),
+                    env: service.env.isEmpty ? nil : service.env.map(literal),
+                    volumes: service.volumes.isEmpty ? nil : service.volumes.map(literal),
+                    publishPorts: service.publishPorts.isEmpty ? nil : service.publishPorts.map(literal),
+                    command: service.command.isEmpty ? nil : literal(service.command),
+                    platform: service.platform)
+            },
+            web: web)
+    }
+
     func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

@@ -110,14 +110,129 @@ final class StacksStore {
         await perform(name: name, title: "Failed to start stack") {
             guard let stack = self.stack(named: name) else { return }
             let client = ContainerClient()
-            for service in stack.services where service.status != .running {
+            // Start in the definition's order where there is one, so a dependency is up
+            // (and has an address) before whatever needs it.
+            let plan = StackDefinitionStore.load(for: name)?.plan()
+            for service in Self.ordered(stack.services, by: plan) where service.status != .running {
                 try await ContainerLauncher.startDetached(
                     id: service.id,
                     tty: service.configuration.initProcess.terminal,
                     client: client
                 )
             }
+            guard let plan else {
+                StackLog.append(
+                    section: "Start",
+                    lines: ["Started without checking addresses — this stack has no saved definition."],
+                    to: name)
+                return
+            }
+            await self.awaitDependencies(in: name, plan: plan)
+            await self.reconcileAddresses(in: name, plan: plan)
         }
+    }
+
+    /// Waits for the services that others address by IP to accept connections, so a
+    /// dependant re-created below doesn't race them the way it does on a cold create.
+    /// Only services actually referenced by an `${IP:…}` token are waited on.
+    private func awaitDependencies(in stackName: String, plan: StackSpec) async {
+        let referenced = StackOrchestrator.referencedRoles(in: plan)
+        guard !referenced.isEmpty else { return }
+        await refresh()
+        guard let stack = stack(named: stackName) else { return }
+        let addresses = Self.addresses(in: stack)
+
+        for defined in plan.services where referenced.contains(defined.key) {
+            guard let host = addresses[defined.key] else { continue }
+            for port in StackOrchestrator.containerPorts(in: defined.publishPorts) {
+                _ = await PortProbe.waitUntilAccepting(host: host, port: port, timeout: .seconds(60))
+            }
+        }
+    }
+
+
+    /// Re-creates services whose baked dependency addresses no longer match reality.
+    ///
+    /// `${IP:…}` tokens are substituted when a container is created and can't be changed
+    /// afterwards, so a restart that reassigns addresses strands every dependant on
+    /// addresses that no longer exist. Re-creating is the only way to update them.
+    private func reconcileAddresses(in stackName: String, plan: StackSpec) async {
+        let progress = GuiProgress()
+        var repaired: [String] = []
+
+        for defined in plan.services {
+            // Only entries carrying a token are compared. The container's full
+            // environment also holds image-provided values, and a false positive here
+            // would destroy a healthy container.
+            let tokenised = defined.env.filter { $0.contains("${IP:") }
+            guard !tokenised.isEmpty else { continue }
+
+            // Re-read after each repair: re-creating a service changes its address, so a
+            // later dependant must resolve against the new one.
+            await refresh()
+            guard let stack = stack(named: stackName) else { return }
+            let addresses = Self.addresses(in: stack)
+
+            guard
+                let container = stack.services.first(where: { Self.role(of: $0) == defined.key })
+            else { continue }
+
+            let expected = tokenised.map { StackOrchestrator.resolve($0, ips: addresses) }
+            // A dependency with no address yet (a one-shot that has exited, say) leaves
+            // the token unresolved — leave the service alone rather than baking in junk.
+            guard !expected.contains(where: { $0.contains("${IP:") }) else { continue }
+
+            let actual = Set(container.configuration.initProcess.environment)
+            guard !expected.allSatisfy(actual.contains) else { continue }
+
+            // Rebuild from the container as it stands, changing only the addresses.
+            // Rebuilding from the definition instead would silently revert anything
+            // edited since — a corrected secret, a tweaked command — which is exactly
+            // the kind of work that must not disappear.
+            var replacement = ContainerServiceSpec.spec(
+                from: container, key: defined.key, displayName: defined.displayName)
+            replacement.env = ContainerServiceSpec.applying(expected, to: replacement.env)
+
+            do {
+                try await addService(
+                    to: stackName, service: replacement, replacing: container, progress: progress)
+                repaired.append(defined.key)
+            } catch {
+                lastError = PresentedError(
+                    title: "Couldn’t update “\(defined.key)”", error: error)
+            }
+        }
+
+        if !repaired.isEmpty {
+            StackLog.append(
+                section: "Updated addresses",
+                lines: repaired.map { "re-created “\($0)” — the services it depends on had moved" },
+                to: stackName)
+        }
+    }
+
+    private static func role(of container: ContainerSnapshot) -> String {
+        container.configuration.labels[StackLabels.role] ?? container.id
+    }
+
+    private static func addresses(in stack: Stack) -> [String: String] {
+        var addresses: [String: String] = [:]
+        for service in stack.services {
+            if let address = service.networks.first?.ipv4Address {
+                addresses[role(of: service)] = "\(address)".withoutCIDRSuffix
+            }
+        }
+        return addresses
+    }
+
+    /// The stack's containers in the definition's order; anything not in it goes last.
+    private static func ordered(
+        _ services: [ContainerSnapshot], by plan: StackSpec?
+    ) -> [ContainerSnapshot] {
+        guard let plan else { return services }
+        let order = Dictionary(
+            plan.services.enumerated().map { ($1.key, $0) }, uniquingKeysWith: { first, _ in first })
+        return services.sorted { (order[role(of: $0)] ?? .max) < (order[role(of: $1)] ?? .max) }
     }
 
     func stop(name: String) async {

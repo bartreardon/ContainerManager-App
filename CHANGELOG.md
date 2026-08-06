@@ -2,6 +2,16 @@
 
 All notable changes to ContainerManager.
 
+## 1.0.8-1 — 2026-08-06
+
+A rebuild of 1.0.8 fixing stacks that broke when restarted.
+
+### Fixed
+- **Restarting a stack no longer breaks the services in it.** Services find each other by IP, and those addresses are written into a container's environment when it's created — but the runtime reassigns them as containers start, so after a restart every dependant was left calling an address that no longer existed (`dial tcp 192.168.69.4:3306: connect: no route to host`). Starting a stack now brings its services up in dependency order and re-creates any whose addresses have gone stale. Only the address entries are changed — anything edited by hand since, such as a corrected password or a tweaked command, is carried over untouched.
+- **Creating or starting a stack no longer stalls at the end.** Each service was waited on until it accepted connections, including the last one that nothing depends on — so a slow-starting app (Fleet running its database migrations, say) held the sheet open long after the work was done. Only services that others actually address are waited for now.
+- **Custom stacks are remembered too.** Stacks built with the custom builder now save their definition like template and compose ones, so they also self-heal and can use **Re-create** and **Prefill from definition**.
+- The readiness log names the address it's waiting on, and skips the wait entirely for a container that has no address yet, instead of timing out against nothing.
+
 ## 1.0.8 — 2026-08-05
 
 ### New
