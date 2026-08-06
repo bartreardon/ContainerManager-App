@@ -80,6 +80,13 @@ struct TemplateStackSheet: View {
                                     Text(failure.message)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                    if failure.created > 0, failure.created < failure.total {
+                                        Text(
+                                            "Close this and open the stack — it lists the services that are missing, with **Re-create** to finish the job once the cause is fixed."
+                                        )
+                                        .font(.caption)
+                                        .padding(.top, 2)
+                                    }
                                 }
                             }
                         }
@@ -238,15 +245,18 @@ struct TemplateStackSheet: View {
         // Seed a line so the progress section appears immediately — the first pull can
         // run for a while before the orchestrator reports its first step.
         log = ["Preparing “\(spec.name)”… (images may need downloading)"]
+
+        // Save before the run, not after: a run that fails partway is exactly when the
+        // definition is needed, since it's what lets the stack offer "Re-create" for the
+        // services that didn't make it.
+        if let document = template.document {
+            StackDefinitionStore.save(
+                StackDefinition(document: document, values: values), for: spec.name)
+        }
+
         do {
             resultURL = try await StackOrchestrator.run(spec: spec, progress: progress) { line in
                 log.append(line)
-            }
-            // Keep what the stack was built from, so a service that failed (or is
-            // added later) can be re-created without re-entering everything.
-            if let document = template.document {
-                StackDefinitionStore.save(
-                    StackDefinition(document: document, values: values), for: spec.name)
             }
             outcome = .succeeded
             await store.refresh()
@@ -255,6 +265,11 @@ struct TemplateStackSheet: View {
             // how far it got rather than implying nothing happened.
             await store.refresh()
             let created = store.stack(named: spec.name)?.services.count ?? 0
+            // Nothing was created, so there's no stack to repair — don't leave an
+            // orphan definition (and its credentials) behind.
+            if created == 0 {
+                StackDefinitionStore.delete(for: spec.name)
+            }
             log.append("Failed: \(PresentedError.describe(error))")
             outcome = .failed(
                 created: created,
