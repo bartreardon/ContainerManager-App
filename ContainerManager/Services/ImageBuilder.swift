@@ -22,11 +22,14 @@ enum ImageBuilder {
     /// `env` entries (`KEY=value`) are applied both ways, since a `.env` file may be
     /// feeding either style of Dockerfile: as `--build-arg` (picked up by matching
     /// `ARG` declarations) and as baked `ENV` defaults on the resulting image.
+    /// `forwardSSH` forwards the host's SSH agent into the build, so a Dockerfile can
+    /// reach private repositories (`RUN --mount=type=ssh …`) without baking a key in.
     static func build(
         name: String,
         tag: String,
         noCache: Bool = false,
         env: [String] = [],
+        forwardSSH: Bool = false,
         onLine: @escaping (String) -> Void
     ) async throws {
         let context = try BuildLibrary.directory(for: name)
@@ -39,6 +42,7 @@ enum ImageBuilder {
         // which is what we render in the log. Default output is a local OCI image.
         var args = ["build", "--progress", "plain", "-f", dockerfile.path, "-t", tag]
         if noCache { args.append("--no-cache") }
+        if forwardSSH { args.append(contentsOf: ["--ssh", "default"]) }
         for entry in env {
             args.append(contentsOf: ["--build-arg", entry])
         }

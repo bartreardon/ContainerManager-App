@@ -2,6 +2,18 @@
 
 All notable changes to ContainerManager.
 
+## 1.1.0 — 2026-08-07
+
+Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
+
+### New
+- **Forward your SSH agent to an image build.** A switch on the Build Image sheet passes `--ssh default`, so a Dockerfile can reach private repositories with `RUN --mount=type=ssh …` without a key ever being written into the image.
+- **Export a container's filesystem.** Right-click a container ▸ **Export Filesystem…** to save it as a tar archive.
+
+### Changed
+- **Built against container 1.2.1** (was 1.0.0). Verified against both a 1.2.0 and a 1.2.1 daemon.
+- **The minimum supported container version is now 1.2.0**, up from 1.0.0. That's the oldest daemon the 1.2.1 client libraries have been verified against; older ones failed obscurely over XPC instead of prompting you to update. Exporting a container needs 1.2.1.
+
 ## 1.0.8-1 — 2026-08-06
 
 A rebuild of 1.0.8 fixing stacks that broke when restarted.

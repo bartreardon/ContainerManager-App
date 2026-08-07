@@ -10,8 +10,13 @@ import Foundation
 /// "container-apiserver version 1.0.0 (…)".
 enum ContainerVersion {
     /// The minimum container version ContainerManager supports.
-    static let minimum = (1, 0, 0)
-    static let minimumString = "1.0.0"
+    ///
+    /// Raised to 1.2.0 when the app moved to the 1.2.1 client libraries: 1.2.0 is the
+    /// oldest daemon that combination has actually been verified against, and
+    /// `container export` for live containers needs 1.2.1. Older daemons would fail
+    /// obscurely over XPC rather than being told to update.
+    static let minimum = (1, 2, 0)
+    static let minimumString = "1.2.0"
 
     /// Extracts the first `major.minor.patch` triple found in the string.
     static func parse(_ string: String) -> (Int, Int, Int)? {

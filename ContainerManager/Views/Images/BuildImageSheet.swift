@@ -27,6 +27,7 @@ struct BuildImageSheet: View {
     @State private var dockerfile: String
     @State private var savedBuilds: [String] = []
     @State private var useEnv = false
+    @State private var forwardSSH = false
     @State private var envText = ""
 
     /// `initialDockerfile` seeds the editor (e.g. from an imported/dropped file);
@@ -105,6 +106,14 @@ struct BuildImageSheet: View {
                         .buttonStyle(.borderless)
                         .help("Load a Dockerfile from disk into the editor")
                     }
+                }
+
+                Section {
+                    Toggle("Forward SSH agent to the build", isOn: $forwardSSH)
+                } footer: {
+                    Text("Lets the Dockerfile reach private repositories with your SSH agent — use `RUN --mount=type=ssh …`. Nothing is written into the image.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section {
@@ -294,7 +303,9 @@ struct BuildImageSheet: View {
             try BuildLibrary.saveDockerfile(buildName, contents: dockerfile)
             try BuildLibrary.saveEnv(buildName, contents: useEnv ? envText : "")
             name = buildName  // reflect the sanitized folder name back to the field
-            try await ImageBuilder.build(name: buildName, tag: useTag, env: env) { line in
+            try await ImageBuilder.build(
+                name: buildName, tag: useTag, env: env, forwardSSH: forwardSSH
+            ) { line in
                 session.log.append(line)
             }
             builtTag = useTag

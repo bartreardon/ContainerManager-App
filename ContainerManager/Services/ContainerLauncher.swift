@@ -25,7 +25,12 @@ enum ContainerLauncher {
 
         let name = spec.name.isEmpty ? nil : spec.name
         let id = Utility.createContainerID(name: name)
-        try Utility.validEntityName(id)
+        // 1.2.x replaced the throwing `Utility.validEntityName` with a Bool check.
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "“\(id)” isn’t a valid container name — use letters, digits, dots, dashes and underscores.")
+        }
 
         guard (try? await client.get(id: id)) == nil else {
             throw ContainerizationError(.exists, message: "a container named “\(id)” already exists")

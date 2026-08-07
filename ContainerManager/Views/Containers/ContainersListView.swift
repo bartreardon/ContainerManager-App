@@ -6,6 +6,7 @@
 import AppKit
 import ContainerResource
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContainersListView: View {
     @Binding var selection: Set<String>
@@ -14,6 +15,7 @@ struct ContainersListView: View {
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
+    @State private var isExporting = false
 
     private var containers: [ContainerSnapshot] {
         guard !searchText.isEmpty else { return store.containers }
@@ -107,6 +109,10 @@ struct ContainersListView: View {
                 Button("Open in Terminal.app") { openInTerminalApp(id) }
             }
             Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
+            if ids.count == 1, let id = ids.first {
+                Button("Export Filesystem…") { export(id) }
+                    .disabled(isExporting)
+            }
             Divider()
             Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
@@ -125,6 +131,24 @@ struct ContainersListView: View {
             case .failed(let message):
                 store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
             }
+        }
+    }
+
+    /// Saves the container's filesystem as a tar archive (container 1.2.1+).
+    private func export(_ id: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(id).tar"
+        panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
+        panel.message = "Export “\(id)” filesystem as a tar archive"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        isExporting = true
+        Task {
+            do {
+                try await ContainerExporter.export(id: id, to: url)
+            } catch {
+                store.lastError = PresentedError(title: "Export failed", error: error)
+            }
+            isExporting = false
         }
     }
 
