@@ -15,7 +15,7 @@ struct ContainersListView: View {
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
-    @State private var isExporting = false
+    @State private var exportStatus: String?
 
     private var containers: [ContainerSnapshot] {
         guard !searchText.isEmpty else { return store.containers }
@@ -39,6 +39,12 @@ struct ContainersListView: View {
             rowMenu(ids)
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter containers")
+        .overlay(alignment: .bottom) {
+            if let exportStatus {
+                BusyBanner(text: exportStatus)
+            }
+        }
+        .animation(.default, value: exportStatus)
         .overlay {
             if store.containers.isEmpty {
                 ContentUnavailableView {
@@ -51,7 +57,7 @@ struct ContainersListView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showCreateSheet = true
                 } label: {
@@ -111,7 +117,7 @@ struct ContainersListView: View {
             Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
             if ids.count == 1, let id = ids.first {
                 Button("Export Filesystem…") { export(id) }
-                    .disabled(isExporting)
+                    .disabled(exportStatus != nil)
             }
             Divider()
             Button("Delete…", role: .destructive) { deleteCandidates = ids }
@@ -141,14 +147,15 @@ struct ContainersListView: View {
         panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
         panel.message = "Export “\(id)” filesystem as a tar archive"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        isExporting = true
+        exportStatus = "Exporting “\(id)”…"
         Task {
             do {
                 try await ContainerExporter.export(id: id, to: url)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch {
                 store.lastError = PresentedError(title: "Export failed", error: error)
             }
-            isExporting = false
+            exportStatus = nil
         }
     }
 

@@ -48,7 +48,7 @@ struct StacksListView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Menu {
                     createMenu
                 } label: {

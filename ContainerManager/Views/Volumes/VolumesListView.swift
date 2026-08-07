@@ -14,7 +14,14 @@ struct VolumesListView: View {
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
-    @State private var collapsedGroups: Set<String> = []
+    // Persisted: a collapsed group springing back open on every launch is exactly the
+    // kind of state a Mac app is expected to remember. SceneStorage takes a plain value,
+    // so the set is kept as newline-separated names.
+    @SceneStorage("volumeCollapsedGroups") private var collapsedGroupsRaw = ""
+
+    private var collapsedGroups: Set<String> {
+        Set(collapsedGroupsRaw.split(separator: "\n").map(String.init))
+    }
     @State private var labelTargets: Set<String> = []
     @State private var labelText = ""
     @State private var labelRevision = 0
@@ -56,7 +63,9 @@ struct VolumesListView: View {
         Binding(
             get: { !collapsedGroups.contains(group) },
             set: { expanded in
-                if expanded { collapsedGroups.remove(group) } else { collapsedGroups.insert(group) }
+                var groups = collapsedGroups
+                if expanded { groups.remove(group) } else { groups.insert(group) }
+                collapsedGroupsRaw = groups.sorted().joined(separator: "\n")
             })
     }
 
@@ -99,7 +108,7 @@ struct VolumesListView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showCreateSheet = true
                 } label: {

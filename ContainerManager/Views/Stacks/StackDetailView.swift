@@ -255,23 +255,24 @@ private struct StackDetailContent: View {
         .formStyle(.grouped)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                if stack.allRunning {
-                    Button {
-                        Task { await store.stop(name: stack.name) }
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .help("Stop all services")
-                    .disabled(isBusy)
-                } else {
-                    Button {
-                        Task { await store.start(name: stack.name) }
-                    } label: {
-                        Label("Start", systemImage: "play.fill")
-                    }
-                    .help("Start all services")
-                    .disabled(isBusy)
+                // Both stay put and enable/disable, rather than one swapping into the
+                // other. A stack is often *partly* running — a one-shot init service
+                // exits by design — and swapping meant Stop never appeared for those
+                // at all, since they can never be "all running".
+                Button {
+                    Task { await store.start(name: stack.name) }
+                } label: {
+                    Label("Start", systemImage: "play.fill")
                 }
+                .help("Start any services that aren’t running")
+                .disabled(isBusy || stack.allRunning)
+                Button {
+                    Task { await store.stop(name: stack.name) }
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                }
+                .help("Stop the services that are running")
+                .disabled(isBusy || !stack.anyRunning)
                 if isBusy {
                     ProgressView().controlSize(.small)
                 }

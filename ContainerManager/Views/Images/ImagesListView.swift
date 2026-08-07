@@ -29,7 +29,7 @@ struct ImagesListView: View {
     @State private var dropTargeted = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
-    @State private var isArchiving = false
+    @State private var archiveStatus: String?
 
     private var images: [ClientImage] {
         guard !searchText.isEmpty else { return store.images }
@@ -52,6 +52,12 @@ struct ImagesListView: View {
             rowMenu(ids)
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter images")
+        .overlay(alignment: .bottom) {
+            if let archiveStatus {
+                BusyBanner(text: archiveStatus)
+            }
+        }
+        .animation(.default, value: archiveStatus)
         .overlay {
             if store.images.isEmpty {
                 ContentUnavailableView {
@@ -78,7 +84,7 @@ struct ImagesListView: View {
             return true
         } isTargeted: { dropTargeted = $0 }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     buildRequest = BuildRequest()
                 } label: {
@@ -86,7 +92,7 @@ struct ImagesListView: View {
                 }
                 .help("Build an image from a Dockerfile")
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showPullSheet = true
                 } label: {
@@ -143,7 +149,7 @@ struct ImagesListView: View {
         if ids.isEmpty {
             Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() }
             Button("Load from Archive…") { loadArchive() }
-                .disabled(isArchiving)
+                .disabled(archiveStatus != nil)
             Divider()
             Button("Delete Unused Images…", role: .destructive) {
                 deleteCandidates = Set(unusedReferences)
@@ -154,7 +160,7 @@ struct ImagesListView: View {
             Button(ids.count > 1 ? "Save \(ids.count) Images as Archive…" : "Save as Archive…") {
                 saveArchive(Array(ids).sorted())
             }
-            .disabled(isArchiving)
+            .disabled(archiveStatus != nil)
             Divider()
             Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
@@ -171,14 +177,15 @@ struct ImagesListView: View {
         panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
         panel.message = "Save \(references.count) image\(references.count == 1 ? "" : "s") as an OCI archive"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        isArchiving = true
+        archiveStatus = "Saving \(references.count) image\(references.count == 1 ? "" : "s")…"
         Task {
             do {
                 try await ImageArchiver.save(references: references, to: url)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch {
                 store.lastError = PresentedError(title: "Couldn’t save archive", error: error)
             }
-            isArchiving = false
+            archiveStatus = nil
         }
     }
 
@@ -191,7 +198,7 @@ struct ImagesListView: View {
         panel.message = "Choose an OCI image archive to load"
         panel.prompt = "Load"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        isArchiving = true
+        archiveStatus = "Loading images from \(url.lastPathComponent)…"
         Task {
             do {
                 try await ImageArchiver.load(from: url)
@@ -199,7 +206,7 @@ struct ImagesListView: View {
             } catch {
                 store.lastError = PresentedError(title: "Couldn’t load archive", error: error)
             }
-            isArchiving = false
+            archiveStatus = nil
         }
     }
 

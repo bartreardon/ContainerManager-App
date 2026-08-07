@@ -49,10 +49,8 @@ private struct ContainerDetailContent: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                startStopButton
-            }
-            ToolbarItem(placement: .principal) {
+            containerActions
+            ToolbarItem(placement: .primaryAction) {
                 Picker("View", selection: $mode) {
                     ForEach(ContainerDetailMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -61,7 +59,6 @@ private struct ContainerDetailContent: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
-            containerActions
         }
         .onChange(of: mode) {
             if mode == .terminal {
@@ -200,24 +197,31 @@ private struct ContainerDetailContent: View {
     @ToolbarContentBuilder
     private var containerActions: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            startStopButton
             Button {
                 showLogs = true
             } label: {
                 Label("Logs", systemImage: "text.alignleft")
             }
             .help("View container logs")
-            Menu {
-                if container.status == .running {
+            // Only shown while running: Kill is its sole entry, so an empty ⋯ would be
+            // left behind once the container stops.
+            if container.status == .running {
+                Menu {
                     Button("Kill (SIGKILL)", role: .destructive) {
                         Task { await store.kill(id: container.id) }
                     }
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
                 }
-                Button("Delete…", role: .destructive) {
-                    showDeleteConfirmation = true
-                }
-            } label: {
-                Label("More", systemImage: "ellipsis.circle")
             }
+            // Direct, as in every other section.
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .help("Delete this container")
         }
     }
 }
