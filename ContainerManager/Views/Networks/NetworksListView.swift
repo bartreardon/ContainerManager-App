@@ -58,6 +58,7 @@ struct NetworksListView: View {
                         }
                     } header: {
                         GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                            .contextMenu { groupMenu(group) }
                     }
                 }
             }
@@ -117,6 +118,21 @@ struct NetworksListView: View {
 
     private var deleteBinding: Binding<Bool> {
         Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+    }
+
+    /// Acts on the whole group. Without this the List's selection menu applies to a
+    /// header right-click and treats the group's name as an item id.
+    @ViewBuilder
+    private func groupMenu(_ group: (name: String, items: [NetworkResource])) -> some View {
+        let ids = Set(group.items.map(\.id))
+        let deletable = Set(group.items.filter { !$0.isBuiltin }.map(\.id))
+        Button("Select All") { selection = ids }
+        Button("Copy Names") { Pasteboard.copy(group.items.map(\.name).sorted()) }
+        Divider()
+        Button("Delete \(deletable.count) Network\(deletable.count == 1 ? "" : "s")…", role: .destructive) {
+            deleteCandidates = deletable
+        }
+        .disabled(deletable.isEmpty)
     }
 
     @ViewBuilder

@@ -94,6 +94,7 @@ struct ImagesListView: View {
                         }
                     } header: {
                         GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                            .contextMenu { groupMenu(group) }
                     }
                 }
             }
@@ -192,6 +193,24 @@ struct ImagesListView: View {
 
     private var deleteBinding: Binding<Bool> {
         Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+    }
+
+    /// Acts on the whole group. Without this the List's selection menu applies to a
+    /// header right-click and treats the group's name as an item reference — which read
+    /// as "Delete the image “Unused”".
+    @ViewBuilder
+    private func groupMenu(_ group: (name: String, items: [ClientImage])) -> some View {
+        let references = group.items.map(\.reference).sorted()
+        Button("Select All") { selection = Set(references) }
+        Button("Copy References") { Pasteboard.copy(references) }
+        Button("Save \(references.count) Image\(references.count == 1 ? "" : "s") as Archive…") {
+            saveArchive(references)
+        }
+        .disabled(archiveStatus != nil)
+        Divider()
+        Button("Delete \(references.count) Image\(references.count == 1 ? "" : "s")…", role: .destructive) {
+            deleteCandidates = Set(references)
+        }
     }
 
     @ViewBuilder

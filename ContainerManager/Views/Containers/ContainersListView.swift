@@ -59,6 +59,7 @@ struct ContainersListView: View {
                         }
                     } header: {
                         GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                            .contextMenu { groupMenu(group) }
                     }
                 }
             }
@@ -124,6 +125,26 @@ struct ContainersListView: View {
 
     private var deleteBinding: Binding<Bool> {
         Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+    }
+
+    /// Acts on the whole group. Without this the List's selection menu applies to a
+    /// header right-click and treats the group's name as an item id.
+    @ViewBuilder
+    private func groupMenu(_ group: (name: String, items: [ContainerSnapshot])) -> some View {
+        let ids = Set(group.items.map(\.id))
+        let running = group.items.filter { $0.status == .running }.map(\.id)
+        Button("Select All") { selection = ids }
+        Button("Copy Names") { Pasteboard.copy(ids.sorted()) }
+        if running.count < ids.count {
+            Button("Start") { Task { for id in ids { await store.start(id: id) } } }
+        }
+        if !running.isEmpty {
+            Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
+        }
+        Divider()
+        Button("Delete \(ids.count) Container\(ids.count == 1 ? "" : "s")…", role: .destructive) {
+            deleteCandidates = ids
+        }
     }
 
     @ViewBuilder
