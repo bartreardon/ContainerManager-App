@@ -30,13 +30,14 @@ struct NetworksListView: View {
             .copyable([network.name])
     }
 
-    /// Networks bucketed by the stack that created them. They carry no stack label, so
-    /// they're matched on the `<stack>-net` name the orchestrator uses.
+    /// Networks bucketed by the stack that created them — from the stack label where
+    /// there is one, falling back to the `<stack>-net` name for networks made before
+    /// that label was written.
     private var groups: [(name: String, items: [NetworkResource])] {
         let byNetworkName = Dictionary(
             stacksStore.stacks.map { ($0.networkName, $0.name) }, uniquingKeysWith: { first, _ in first })
         let bucketed = Dictionary(grouping: networks) { network in
-            byNetworkName[network.name] ?? ListGroups.ungrouped
+            network.labels[StackLabels.stack] ?? byNetworkName[network.name] ?? ListGroups.ungrouped
         }
         return ListGroups.sorted(
             bucketed.map { (name: $0.key, items: $0.value.sorted { $0.name < $1.name }) })

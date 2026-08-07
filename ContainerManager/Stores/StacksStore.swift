@@ -261,7 +261,7 @@ final class StacksStore {
         let issues = StackValidator.issues(in: plan)
         guard issues.isEmpty else { throw StackValidator.Failure(issues: issues) }
 
-        try await StackOrchestrator.ensureNetwork(named: "\(stackName)-net")
+        try await StackOrchestrator.ensureNetwork(named: "\(stackName)-net", for: stackName)
         // Claim any new named volumes so they carry the stack label too.
         await StackOrchestrator.ensureVolumes(for: plan)
 
