@@ -3,8 +3,10 @@
 //  ContainerManager
 //
 
+import AppKit
 import ContainerAPIClient
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A request to open the Build sheet, optionally prefilled with a Dockerfile
 /// (from the toolbar/empty-state buttons, or a dropped/imported file).
@@ -23,6 +25,7 @@ struct ImagesListView: View {
     @State private var dropTargeted = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
+    @State private var isArchiving = false
 
     private var images: [ClientImage] {
         guard !searchText.isEmpty else { return store.images }
@@ -129,10 +132,59 @@ struct ImagesListView: View {
     private func rowMenu(_ ids: Set<String>) -> some View {
         if ids.isEmpty {
             Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() }
+            Button("Load from Archive…") { loadArchive() }
+                .disabled(isArchiving)
         } else {
             Button(ids.count > 1 ? "Copy References" : "Copy Reference") { Pasteboard.copy(ids.sorted()) }
+            Button(ids.count > 1 ? "Save \(ids.count) Images as Archive…" : "Save as Archive…") {
+                saveArchive(Array(ids).sorted())
+            }
+            .disabled(isArchiving)
             Divider()
             Button("Delete…", role: .destructive) { deleteCandidates = ids }
+        }
+    }
+
+    /// Writes the selected images to an OCI archive — layers and configuration, so it
+    /// can be loaded back here or on another Mac.
+    private func saveArchive(_ references: [String]) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue =
+            references.count == 1
+            ? "\(references[0].shortImageReference.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")).tar"
+            : "images.tar"
+        panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
+        panel.message = "Save \(references.count) image\(references.count == 1 ? "" : "s") as an OCI archive"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        isArchiving = true
+        Task {
+            do {
+                try await ImageArchiver.save(references: references, to: url)
+            } catch {
+                store.lastError = PresentedError(title: "Couldn’t save archive", error: error)
+            }
+            isArchiving = false
+        }
+    }
+
+    private func loadArchive() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
+        panel.message = "Choose an OCI image archive to load"
+        panel.prompt = "Load"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        isArchiving = true
+        Task {
+            do {
+                try await ImageArchiver.load(from: url)
+                await store.refresh()
+            } catch {
+                store.lastError = PresentedError(title: "Couldn’t load archive", error: error)
+            }
+            isArchiving = false
         }
     }
 

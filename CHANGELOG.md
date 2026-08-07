@@ -8,7 +8,8 @@ Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
 
 ### New
 - **Forward your SSH agent to an image build.** A switch on the Build Image sheet passes `--ssh default`, so a Dockerfile can reach private repositories with `RUN --mount=type=ssh …` without a key ever being written into the image.
-- **Export a container's filesystem.** Right-click a container ▸ **Export Filesystem…** to save it as a tar archive.
+- **Export a container's filesystem.** Right-click a container ▸ **Export Filesystem…** to save it as a tar archive. Useful for inspecting or extracting what's inside a running container — note it's the files only, with no layers or image configuration, and `container` has no matching import, so it doesn't load back.
+- **Save and load images as archives.** Right-click an image ▸ **Save as Archive…** writes an OCI archive (layers and configuration included), and **Load from Archive…** reads one back. Unlike the container export this genuinely round-trips, so it's the way to move an image to another Mac or keep one that isn't in a registry.
 
 ### Changed
 - **Built against container 1.2.1** (was 1.0.0). Verified against both a 1.2.0 and a 1.2.1 daemon.
