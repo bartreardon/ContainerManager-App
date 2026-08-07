@@ -13,6 +13,7 @@ Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
 - **Save and load images as archives.** Right-click an image ▸ **Save as Archive…** writes an OCI archive (layers and configuration included), and **Load from Archive…** reads one back. Unlike the container export this genuinely round-trips, so it's the way to move an image to another Mac or keep one that isn't in a registry.
 
 ### Fixed
+- **A stack's web UI is judged by the service that serves it.** The menu bar offered to *start* a stack whose site was already up, and "Open in Browser" stayed enabled when the web service was down but something else was running. Both now check the service carrying the web address, so a one-shot init container exiting doesn't misreport the site.
 - **A partly-running stack couldn't be stopped.** The toolbar swapped Start for Stop based on every service running, so a stack containing a one-shot service — an init container that exits by design — could never show Stop at all. Both buttons now hold their positions and enable or disable instead.
 
 ### Changed

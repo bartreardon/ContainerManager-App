@@ -135,7 +135,7 @@ private struct StackDetailContent: View {
                     } label: {
                         Label("Open in Browser", systemImage: "safari")
                     }
-                    .disabled(!stack.anyRunning)
+                    .disabled(!stack.webIsRunning)
                 }
             }
             Section {

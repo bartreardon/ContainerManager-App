@@ -31,10 +31,21 @@ struct Stack: Identifiable {
     }
 
     var webURL: URL? {
-        services
-            .compactMap { $0.configuration.labels[StackLabels.url] }
-            .first
-            .flatMap(URL.init)
+        webService?.configuration.labels[StackLabels.url].flatMap(URL.init)
+    }
+
+    /// The service that serves the web URL — the label lives on that container.
+    var webService: ContainerSnapshot? {
+        services.first { $0.configuration.labels[StackLabels.url] != nil }
+    }
+
+    /// Whether the web URL is actually being served.
+    ///
+    /// Deliberately not `allRunning`: a stack with a one-shot service — an init
+    /// container that exits by design — is never "all running", so judging the web UI
+    /// by that offered to *start* a stack whose site was already up.
+    var webIsRunning: Bool {
+        webService?.status == .running
     }
 
     /// The dedicated network created for this stack (by convention).
