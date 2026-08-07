@@ -9,6 +9,7 @@ Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
 ### New
 - **Forward your SSH agent to an image build.** A switch on the Build Image sheet passes `--ssh default`, so a Dockerfile can reach private repositories with `RUN --mount=type=ssh …` without a key ever being written into the image.
 - **Export a container's filesystem.** Right-click a container ▸ **Export Filesystem…** to save it as a tar archive. Useful for inspecting or extracting what's inside a running container — note it's the files only, with no layers or image configuration, and `container` has no matching import, so it doesn't load back.
+- **See which images nothing is using.** Images not referenced by any container (running or stopped) or machine are badged **Unused**, and **Delete Unused Images…** removes them in one go through the usual confirmation. Stopped containers count, which is why deleting an image can appear to free nothing: its data stays alive while something still references it. The runtime's own builder and init images are never listed, so they can't be swept up — though superseded `vminit` versions will show, and are usually the easiest space to reclaim.
 - **Save and load images as archives.** Right-click an image ▸ **Save as Archive…** writes an OCI archive (layers and configuration included), and **Load from Archive…** reads one back. Unlike the container export this genuinely round-trips, so it's the way to move an image to another Mac or keep one that isn't in a registry.
 
 ### Changed

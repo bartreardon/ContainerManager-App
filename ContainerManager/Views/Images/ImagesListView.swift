@@ -5,6 +5,8 @@
 
 import AppKit
 import ContainerAPIClient
+import ContainerResource
+import MachineAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -18,6 +20,8 @@ private struct BuildRequest: Identifiable {
 struct ImagesListView: View {
     @Binding var selection: Set<String>
     @Environment(ImagesStore.self) private var store
+    @Environment(ContainersStore.self) private var containersStore
+    @Environment(MachinesStore.self) private var machinesStore
     @Environment(ImageImportModel.self) private var imageImport
     @Environment(WindowRouter.self) private var router
     @State private var showPullSheet = false
@@ -36,7 +40,9 @@ struct ImagesListView: View {
         @Bindable var store = store
         List(selection: $selection) {
             ForEach(images, id: \.reference) { image in
-                ImageRow(image: image, size: store.sizes[image.digest])
+                ImageRow(
+                    image: image, size: store.sizes[image.digest],
+                    isUnused: !usedReferences.contains(image.reference))
                     .tag(image.reference)
                     .draggable(image.reference)
                     .copyable([image.reference])
@@ -119,6 +125,10 @@ struct ImagesListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
+                // Those two stores are refreshed by their own lists, which aren't on
+                // screen here — without this the "Unused" badges would go stale.
+                await containersStore.refresh()
+                await machinesStore.refresh()
                 try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
@@ -134,6 +144,11 @@ struct ImagesListView: View {
             Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() }
             Button("Load from Archive…") { loadArchive() }
                 .disabled(isArchiving)
+            Divider()
+            Button("Delete Unused Images…", role: .destructive) {
+                deleteCandidates = Set(unusedReferences)
+            }
+            .disabled(unusedReferences.isEmpty)
         } else {
             Button(ids.count > 1 ? "Copy References" : "Copy Reference") { Pasteboard.copy(ids.sorted()) }
             Button(ids.count > 1 ? "Save \(ids.count) Images as Archive…" : "Save as Archive…") {
@@ -188,6 +203,19 @@ struct ImagesListView: View {
         }
     }
 
+    /// Image references in use by a container (running or not) or a machine. Anything
+    /// else is safe to remove; the store has already filtered out the runtime's own
+    /// builder and init images, so nothing here is a system image.
+    private var usedReferences: Set<String> {
+        var used = Set(containersStore.containers.map { $0.configuration.image.reference })
+        used.formUnion(machinesStore.machines.map { $0.configuration.image.reference })
+        return used
+    }
+
+    private var unusedReferences: [String] {
+        images.map(\.reference).filter { !usedReferences.contains($0) }
+    }
+
     /// Picks up a Dockerfile dropped on the sidebar's Images entry.
     private func consumePendingImport() {
         guard let text = imageImport.pendingDockerfile else { return }
@@ -207,6 +235,8 @@ struct ImagesListView: View {
 struct ImageRow: View {
     let image: ClientImage
     let size: Int64?
+    /// Not referenced by any container or machine, so removing it frees real space.
+    var isUnused = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -214,9 +244,18 @@ struct ImageRow: View {
                 Text(image.reference.shortImageReference)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                Text(image.digest.shortDigest)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Text(image.digest.shortDigest)
+                        .font(.caption.monospaced())
+                    if isUnused {
+                        Text("Unused")
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+                .foregroundStyle(.secondary)
             }
             Spacer()
             if let size {
