@@ -30,22 +30,72 @@ struct ImagesListView: View {
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
     @State private var archiveStatus: String?
+    @SceneStorage("imageCollapsedGroups") private var collapsedGroups = ""
 
     private var images: [ClientImage] {
         guard !searchText.isEmpty else { return store.images }
         return store.images.filter { $0.reference.localizedCaseInsensitiveContains(searchText) }
     }
 
+    @ViewBuilder
+    private func row(_ image: ClientImage) -> some View {
+        ImageRow(
+            image: image, size: store.sizes[image.digest],
+            isUnused: !usedReferences.contains(image.reference)
+        )
+        .tag(image.reference)
+        .draggable(image.reference)
+        .copyable([image.reference])
+    }
+
+    /// What refers to each image reference: the stack a container belongs to, or the
+    /// containers/machines bucket for standalone ones.
+    private var owners: [String: Set<String>] {
+        var owners: [String: Set<String>] = [:]
+        for container in containersStore.containers {
+            let owner = container.configuration.labels[StackLabels.stack] ?? "Containers"
+            owners[container.configuration.image.reference, default: []].insert(owner)
+        }
+        for machine in machinesStore.machines {
+            owners[machine.configuration.image.reference, default: []].insert("Machines")
+        }
+        return owners
+    }
+
+    /// Images bucketed by what uses them. An image used by more than one thing goes to
+    /// a single "Shared" group rather than being listed twice — a row has to stay
+    /// uniquely identifiable for selection to work.
+    private var groups: [(name: String, items: [ClientImage])] {
+        let owners = owners
+        let bucketed = Dictionary(grouping: images) { image -> String in
+            let users = owners[image.reference] ?? []
+            switch users.count {
+            case 0: return ListGroups.unused
+            case 1: return users.first ?? ListGroups.unused
+            default: return ListGroups.shared
+            }
+        }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.reference < $1.reference }) })
+    }
+
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(images, id: \.reference) { image in
-                ImageRow(
-                    image: image, size: store.sizes[image.digest],
-                    isUnused: !usedReferences.contains(image.reference))
-                    .tag(image.reference)
-                    .draggable(image.reference)
-                    .copyable([image.reference])
+            let groups = groups
+            if groups.count == 1 {
+                ForEach(groups[0].items, id: \.reference) { row($0) }
+            } else {
+                ForEach(groups, id: \.name) { group in
+                    let expanded = ListGroups.expansion(of: group.name, collapsed: $collapsedGroups)
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(group.items, id: \.reference) { row($0) }
+                        }
+                    } header: {
+                        GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                    }
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in

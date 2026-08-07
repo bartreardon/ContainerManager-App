@@ -15,13 +15,8 @@ struct VolumesListView: View {
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
     // Persisted: a collapsed group springing back open on every launch is exactly the
-    // kind of state a Mac app is expected to remember. SceneStorage takes a plain value,
-    // so the set is kept as newline-separated names.
-    @SceneStorage("volumeCollapsedGroups") private var collapsedGroupsRaw = ""
-
-    private var collapsedGroups: Set<String> {
-        Set(collapsedGroupsRaw.split(separator: "\n").map(String.init))
-    }
+    // kind of state a Mac app is expected to remember.
+    @SceneStorage("volumeCollapsedGroups") private var collapsedGroups = ""
     @State private var labelTargets: Set<String> = []
     @State private var labelText = ""
     @State private var labelRevision = 0
@@ -38,14 +33,9 @@ struct VolumesListView: View {
         let bucketed = Dictionary(grouping: volumes) {
             VolumeGrouping.group(for: $0, stacks: stacks) ?? VolumeGrouping.ungrouped
         }
-        return
-            bucketed
-            .map { (name: $0.key, volumes: $0.value.sorted { $0.name < $1.name }) }
-            .sorted { first, second in
-                if first.name == VolumeGrouping.ungrouped { return false }
-                if second.name == VolumeGrouping.ungrouped { return true }
-                return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
-            }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.name < $1.name }) }
+        ).map { (name: $0.name, volumes: $0.items) }
     }
 
     @ViewBuilder
@@ -60,13 +50,7 @@ struct VolumesListView: View {
     }
 
     private func expansion(of group: String) -> Binding<Bool> {
-        Binding(
-            get: { !collapsedGroups.contains(group) },
-            set: { expanded in
-                var groups = collapsedGroups
-                if expanded { groups.remove(group) } else { groups.insert(group) }
-                collapsedGroupsRaw = groups.sorted().joined(separator: "\n")
-            })
+        ListGroups.expansion(of: group, collapsed: $collapsedGroups)
     }
 
     var body: some View {
@@ -78,16 +62,22 @@ struct VolumesListView: View {
                 ForEach(groups[0].volumes, id: \.id) { row($0) }
             } else {
                 ForEach(groups, id: \.name) { group in
-                    Section(isExpanded: expansion(of: group.name)) {
-                        ForEach(group.volumes, id: \.id) { row($0) }
+                    let expanded = expansion(of: group.name)
+                    Section {
+                        // Collapsing is done here rather than with Section(isExpanded:),
+                        // which only draws a disclosure control in a .sidebar-styled
+                        // list — in this one it was silently ignored, leaving a state
+                        // with no way to change it.
+                        if expanded.wrappedValue {
+                            ForEach(group.volumes, id: \.id) { row($0) }
+                        }
                     } header: {
-                        Text("\(group.name) (\(group.volumes.count))")
-                            // Fill the row so the whole header is the hit area, and give
-                            // it its own menu — otherwise the List's selection menu
-                            // applies here and acts on the selection, not the group.
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(.rect)
-                            .contextMenu { groupMenu(group) }
+                        // Its own menu — otherwise the List's selection menu applies
+                        // here and acts on the selection, not the group.
+                        GroupHeader(
+                            name: group.name, count: group.volumes.count, isExpanded: expanded
+                        )
+                        .contextMenu { groupMenu(group) }
                     }
                 }
             }

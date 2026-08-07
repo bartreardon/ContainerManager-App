@@ -18,7 +18,7 @@ Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
 ### Changed
 - **Consistent toolbars across every section.** Actions that create things (New Machine, New Container, Build/Pull Image, New Network, New Volume, New Stack) sit at the window's leading edge, where Finder puts its own, so they no longer shift sideways when you select something. The selected item's actions — start/stop, item-specific ones, and Delete — sit together at the detail pane's leading edge. Delete is a direct button everywhere now, rather than being tucked inside the ⋯ menu on Machines and Containers.
 - **Saving, loading and exporting show progress**, and reveal the finished file in Finder when they're done.
-- **Volume groups stay collapsed** across relaunches.
+- **Lists group things together.** Volumes group by label or the stack that created them; containers and networks by the stack they belong to; images by what uses them, with anything used by more than one thing under **Shared** and the rest under **Unused**. Group headers collapse with a click and stay collapsed across relaunches.
 - **Built against container 1.2.1** (was 1.0.0). Verified against both a 1.2.0 and a 1.2.1 daemon.
 - **The minimum supported container version is now 1.2.0**, up from 1.0.0. That's the oldest daemon the 1.2.1 client libraries have been verified against; older ones failed obscurely over XPC instead of prompting you to update. Exporting a container needs 1.2.1.
 

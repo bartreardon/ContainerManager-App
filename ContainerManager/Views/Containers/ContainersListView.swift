@@ -16,6 +16,7 @@ struct ContainersListView: View {
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
     @State private var exportStatus: String?
+    @SceneStorage("containerCollapsedGroups") private var collapsedGroups = ""
 
     private var containers: [ContainerSnapshot] {
         guard !searchText.isEmpty else { return store.containers }
@@ -25,14 +26,41 @@ struct ContainersListView: View {
         }
     }
 
+    @ViewBuilder
+    private func row(_ container: ContainerSnapshot) -> some View {
+        ContainerRow(container: container)
+            .tag(container.id)
+            .draggable(container.id)
+            .copyable([container.id])
+    }
+
+    /// Containers bucketed by the stack they belong to; standalone ones last.
+    private var groups: [(name: String, items: [ContainerSnapshot])] {
+        let bucketed = Dictionary(grouping: containers) {
+            $0.configuration.labels[StackLabels.stack] ?? ListGroups.ungrouped
+        }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.id < $1.id }) })
+    }
+
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(containers, id: \.id) { container in
-                ContainerRow(container: container)
-                    .tag(container.id)
-                    .draggable(container.id)
-                    .copyable([container.id])
+            let groups = groups
+            // Sections would be noise when nothing belongs to a stack.
+            if groups.count == 1, groups[0].name == ListGroups.ungrouped {
+                ForEach(groups[0].items, id: \.id) { row($0) }
+            } else {
+                ForEach(groups, id: \.name) { group in
+                    let expanded = ListGroups.expansion(of: group.name, collapsed: $collapsedGroups)
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(group.items, id: \.id) { row($0) }
+                        }
+                    } header: {
+                        GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                    }
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in

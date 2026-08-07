@@ -10,24 +10,55 @@ import SwiftUI
 struct NetworksListView: View {
     @Binding var selection: Set<String>
     @Environment(NetworksStore.self) private var store
+    @Environment(StacksStore.self) private var stacksStore
     @Environment(WindowRouter.self) private var router
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
+    @SceneStorage("networkCollapsedGroups") private var collapsedGroups = ""
 
     private var networks: [NetworkResource] {
         guard !searchText.isEmpty else { return store.networks }
         return store.networks.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
+    @ViewBuilder
+    private func row(_ network: NetworkResource) -> some View {
+        NetworkRow(network: network)
+            .tag(network.id)
+            .draggable(network.name)
+            .copyable([network.name])
+    }
+
+    /// Networks bucketed by the stack that created them. They carry no stack label, so
+    /// they're matched on the `<stack>-net` name the orchestrator uses.
+    private var groups: [(name: String, items: [NetworkResource])] {
+        let byNetworkName = Dictionary(
+            stacksStore.stacks.map { ($0.networkName, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let bucketed = Dictionary(grouping: networks) { network in
+            byNetworkName[network.name] ?? ListGroups.ungrouped
+        }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.name < $1.name }) })
+    }
+
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(networks, id: \.id) { network in
-                NetworkRow(network: network)
-                    .tag(network.id)
-                    .draggable(network.name)
-                    .copyable([network.name])
+            let groups = groups
+            if groups.count == 1, groups[0].name == ListGroups.ungrouped {
+                ForEach(groups[0].items, id: \.id) { row($0) }
+            } else {
+                ForEach(groups, id: \.name) { group in
+                    let expanded = ListGroups.expansion(of: group.name, collapsed: $collapsedGroups)
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(group.items, id: \.id) { row($0) }
+                        }
+                    } header: {
+                        GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                    }
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in
