@@ -66,7 +66,7 @@ struct MachinesListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) machines?"
                 : "Delete the machine “\(deleteCandidates.first ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let ids = deleteCandidates
@@ -77,18 +77,8 @@ struct MachinesListView: View {
             Text("Each machine will be stopped and its disk contents permanently removed.")
         }
         .errorAlert($store.lastError)
-        .onAppear(perform: consumeCreate)
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
-        }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+        .onCreateRequest(for: .machines) { showCreateSheet = true }
+        .autoRefresh { await store.refresh() }
     }
 
     @ViewBuilder
@@ -118,12 +108,6 @@ struct MachinesListView: View {
         }
     }
 
-    private func consumeCreate() {
-        if router.pendingCreate == .machines {
-            showCreateSheet = true
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct MachineRow: View {

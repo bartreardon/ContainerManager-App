@@ -162,7 +162,7 @@ struct ImagesListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) images?"
                 : "Delete the image “\(deleteCandidates.first?.shortImageReference ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let refs = deleteCandidates
@@ -173,26 +173,16 @@ struct ImagesListView: View {
             Text("This removes the image\(deleteCandidates.count > 1 ? "s" : "") from local storage.")
         }
         .errorAlert($store.lastError)
-        .onAppear {
-            consumePendingImport()
-            consumeCreate()
-        }
+        .onAppear(perform: consumePendingImport)
         .onChange(of: imageImport.pendingDockerfile) { consumePendingImport() }
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                // Those two stores are refreshed by their own lists, which aren't on
-                // screen here — without this the "Unused" badges would go stale.
-                await containersStore.refresh()
-                await machinesStore.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
+        .onCreateRequest(for: .images) { buildRequest = BuildRequest() }
+        .autoRefresh {
+            await store.refresh()
+            // Those two stores are refreshed by their own lists, which aren't on
+            // screen here — without this the "Unused" badges would go stale.
+            await containersStore.refresh()
+            await machinesStore.refresh()
         }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
     /// Acts on the whole group. Without this the List's selection menu applies to a
@@ -300,12 +290,6 @@ struct ImagesListView: View {
     }
 
     /// New ▸ Image (menu/context) opens the Build sheet.
-    private func consumeCreate() {
-        if router.pendingCreate == .images {
-            buildRequest = BuildRequest()
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct ImageRow: View {

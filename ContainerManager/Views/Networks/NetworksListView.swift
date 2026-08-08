@@ -95,7 +95,7 @@ struct NetworksListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) networks?"
                 : "Delete the network “\(deleteCandidates.first ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let ids = deleteCandidates
@@ -106,18 +106,8 @@ struct NetworksListView: View {
             Text("Deletion only succeeds when no containers are attached.")
         }
         .errorAlert($store.lastError)
-        .onAppear(perform: consumeCreate)
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
-        }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+        .onCreateRequest(for: .networks) { showCreateSheet = true }
+        .autoRefresh { await store.refresh() }
     }
 
     /// Acts on the whole group. Without this the List's selection menu applies to a
@@ -148,12 +138,6 @@ struct NetworksListView: View {
         }
     }
 
-    private func consumeCreate() {
-        if router.pendingCreate == .networks {
-            showCreateSheet = true
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct NetworkRow: View {

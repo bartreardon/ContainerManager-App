@@ -41,8 +41,8 @@ struct StackLogTests {
     }
 
     @Test("Many appends all survive")
-    func manyAppends() throws {
-        try withScratchLog { name in
+    func manyAppends() {
+        withScratchLog { name in
             for index in 0..<50 {
                 StackLog.append(section: "Step \(index)", lines: ["line \(index)"], to: name)
             }
@@ -54,8 +54,8 @@ struct StackLogTests {
     }
 
     @Test("An empty section writes nothing at all")
-    func emptySectionsAreSkipped() throws {
-        try withScratchLog { name in
+    func emptySectionsAreSkipped() {
+        withScratchLog { name in
             StackLog.append(section: "Nothing", lines: [], to: name)
             StackLog.append(section: "Blank", lines: ["", "   "], to: name)
             #expect(StackLog.exists(for: name) == false)
@@ -74,8 +74,8 @@ struct StackLogTests {
     }
 
     @Test("Deleting removes the file")
-    func deleteRemoves() throws {
-        try withScratchLog { name in
+    func deleteRemoves() {
+        withScratchLog { name in
             StackLog.append(section: "First", lines: ["alpha"], to: name)
             #expect(StackLog.exists(for: name))
             StackLog.delete(for: name)

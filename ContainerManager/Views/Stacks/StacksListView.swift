@@ -69,7 +69,7 @@ struct StacksListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) stacks?"
                 : "Delete the stack “\(deleteCandidates.first ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let names = deleteCandidates
@@ -80,20 +80,10 @@ struct StacksListView: View {
             Text("Removes all of the stacks' containers and networks. Data volumes are kept.")
         }
         .errorAlert($store.lastError)
-        .onAppear(perform: consumeCreate)
-        .onChange(of: router.pendingCreate) { consumeCreate() }
+        .onCreateRequest(for: .stacks) { presentedSheet = .custom }
         .onAppear(perform: consumeImport)
         .onChange(of: router.pendingStackImport) { consumeImport() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
-        }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+        .autoRefresh { await store.refresh() }
     }
 
     @ViewBuilder
@@ -117,12 +107,6 @@ struct StacksListView: View {
         }
     }
 
-    private func consumeCreate() {
-        if router.pendingCreate == .stacks {
-            presentedSheet = .custom
-            router.pendingCreate = nil
-        }
-    }
 
     /// Imports a definition file opened from Finder (routed via `onOpenURL`).
     private func consumeImport() {
