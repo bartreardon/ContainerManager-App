@@ -57,6 +57,13 @@ enum TerminalLauncher {
     /// Runs `command` in Terminal.app. Tries AppleScript first, which triggers the
     /// system's automation consent prompt on first use; if consent is denied, falls
     /// back to opening a .command file with Terminal, which needs no automation.
+    ///
+    /// `command` is interpolated into AppleScript source and, on the fallback path, a
+    /// shell script. That is safe only because the ids reaching it come from the
+    /// runtime and are restricted to a name charset by `ManagedContainer.nameValid`
+    /// upstream — nothing here escapes them. If names are ever allowed quotes,
+    /// backslashes or semicolons, this becomes an injection point needing escaping on
+    /// both paths.
     private static func openShell(command: String, fallbackName: String) async -> ShellResult {
         let script = """
             tell application "Terminal"

@@ -66,13 +66,6 @@ final class WindowRouter {
 
 // MARK: - Focused value plumbing for menu commands
 
-struct WindowRouterFocusedKey: FocusedValueKey {
-    typealias Value = WindowRouter
-}
-
 extension FocusedValues {
-    var windowRouter: WindowRouter? {
-        get { self[WindowRouterFocusedKey.self] }
-        set { self[WindowRouterFocusedKey.self] = newValue }
-    }
+    @Entry var windowRouter: WindowRouter?
 }

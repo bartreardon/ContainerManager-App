@@ -35,14 +35,23 @@ enum UpdateCheckFrequency: String, CaseIterable, Identifiable {
 /// `@AppStorage` keys used by SettingsView). Read live inside polling loops so
 /// changes take effect on the next refresh.
 enum AppDefaults {
+    // Every key in one place, so a view and the code reading it behind its back can't
+    // drift apart. `containerBinaryPath` belongs to CLIPathResolver, which reads it.
+    static let listRefreshKey = "listRefreshSeconds"
+    static let showMenuBarIconKey = "showMenuBarIcon"
+    static let updateCheckFrequencyKey = "updateCheckFrequency"
+    static let lastUpdateCheckKey = "lastUpdateCheck"
+
     /// List auto-refresh interval. Defaults to 5s when unset.
     static var listRefresh: Duration {
-        let seconds = UserDefaults.standard.integer(forKey: "listRefreshSeconds")
+        let seconds = UserDefaults.standard.integer(forKey: listRefreshKey)
         return .seconds(Double(seconds == 0 ? 5 : seconds))
     }
 
-    static let updateCheckFrequencyKey = "updateCheckFrequency"
-    static let lastUpdateCheckKey = "lastUpdateCheck"
+    /// Whether the menu bar item is shown. Defaults to true when unset.
+    static var showMenuBarIcon: Bool {
+        UserDefaults.standard.object(forKey: showMenuBarIconKey) as? Bool ?? true
+    }
 
     /// Configured automatic update-check cadence. Defaults to weekly.
     static var updateCheckFrequency: UpdateCheckFrequency {
