@@ -31,7 +31,10 @@ struct AppCommands: Commands {
         // App ▸ Check for Updates… (below About)
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") {
-                Task { await systemStore.checkForUpdates(force: true) }
+                Task {
+                    await systemStore.checkForUpdates(force: true)
+                    UpdateAlert.presentPending(systemStore)
+                }
             }
         }
 

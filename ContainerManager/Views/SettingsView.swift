@@ -72,7 +72,10 @@ struct SettingsView: View {
                     "Apple container", installed: systemStore.installedContainerVersion,
                     available: systemStore.availableUpdate
                 ) {
-                    Button("Update…") { systemStore.promptUpdate() }
+                    Button("Update…") {
+                        systemStore.promptUpdate()
+                        UpdateAlert.presentPending(systemStore)
+                    }
                 }
                 Picker("Check automatically", selection: $updateFrequency) {
                     ForEach(UpdateCheckFrequency.allCases) { frequency in
@@ -81,7 +84,10 @@ struct SettingsView: View {
                 }
                 HStack {
                     Button("Check Now") {
-                        Task { await systemStore.checkForUpdates(force: true) }
+                        Task {
+                            await systemStore.checkForUpdates(force: true)
+                            UpdateAlert.presentPending(systemStore)
+                        }
                     }
                     Spacer()
                     Text(lastCheckedText)
@@ -93,7 +99,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .updateSummaryAlert(systemStore)
         .frame(width: 460, height: 520)
     }
 
