@@ -26,6 +26,8 @@ struct MachineCreateSheet: View {
 
     @State private var progress = GuiProgress()
     @State private var isCreating = false
+    /// Held so Cancel can stop the work rather than only closing the sheet.
+    @State private var task: Task<Void, Never>?
     @State private var error: PresentedError?
 
     var body: some View {
@@ -98,10 +100,11 @@ struct MachineCreateSheet: View {
                 }
                 Spacer()
                 Button("Cancel") {
+                    task?.cancel()
                     dismiss()
                 }
                 Button("Create") {
-                    Task { await create() }
+                    task = Task { await create() }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isCreating || image.isEmpty)
@@ -109,6 +112,7 @@ struct MachineCreateSheet: View {
             .padding(14)
         }
         .frame(width: 480)
+        .onDisappear { task?.cancel() }
     }
 
     private func create() async {
@@ -126,6 +130,8 @@ struct MachineCreateSheet: View {
         do {
             try await store.create(spec: spec, progress: progress)
             dismiss()
+        } catch is CancellationError {
+            // Asked for — the sheet is already closing.
         } catch {
             self.error = PresentedError(title: "Failed to create machine", error: error)
         }

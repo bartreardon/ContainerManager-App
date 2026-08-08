@@ -12,6 +12,8 @@ struct ImagePullSheet: View {
     @State private var reference = ""
     @State private var progress = GuiProgress()
     @State private var isPulling = false
+    /// Held so Cancel can stop the work rather than only closing the sheet.
+    @State private var task: Task<Void, Never>?
     @State private var error: PresentedError?
 
     var body: some View {
@@ -52,10 +54,11 @@ struct ImagePullSheet: View {
                 }
                 Spacer()
                 Button("Cancel") {
+                    task?.cancel()
                     dismiss()
                 }
                 Button("Pull") {
-                    Task { await pull() }
+                    task = Task { await pull() }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isPulling || reference.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -63,6 +66,7 @@ struct ImagePullSheet: View {
             .padding(14)
         }
         .frame(width: 440)
+        .onDisappear { task?.cancel() }
     }
 
     private func pull() async {
@@ -74,6 +78,8 @@ struct ImagePullSheet: View {
                 progress: progress
             )
             dismiss()
+        } catch is CancellationError {
+            // Asked for — the sheet is already closing.
         } catch {
             self.error = PresentedError(title: "Failed to pull image", error: error)
         }

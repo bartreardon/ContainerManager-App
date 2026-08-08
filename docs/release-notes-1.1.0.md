@@ -39,6 +39,13 @@ them. Group headers collapse with a click and stay collapsed.
   stack whose site was already up, and "Open in Browser" stayed enabled when the
   web service was down. Both now check the service that actually serves the
   address.
+- **A build couldn't be stopped.** `container build` runs for minutes and there
+  was no way to interrupt it — closing the sheet left it building with nothing
+  showing its progress. The Build Image sheet now has a **Stop** button, and
+  closing it stops the build.
+- **Cancel now cancels.** On the machine, container and pull sheets, Cancel
+  closed the sheet but left the work running, and if it then failed there was
+  nowhere for the failure to appear. It now stops the work on the way out.
 
 ## Changed
 
