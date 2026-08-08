@@ -55,6 +55,9 @@ them. Group headers collapse with a click and stay collapsed.
   Delete — sit together on the detail side. Delete is a direct button everywhere,
   rather than hiding inside the ⋯ menu on Machines and Containers.
 - **Long operations show progress** and reveal the finished file in Finder.
+- **Live logs stay responsive, and can be copied.** A long build's output no
+  longer slows the sheet down as it arrives, and build, stack-run and
+  service-start logs can now be selected and copied in one go.
 - **Built in Swift 6 language mode.** Data passing between the interface and the
   work going on behind it is now checked by the compiler rather than taken on
   trust — the class of mistake that surfaces as a glitch nobody can reproduce.

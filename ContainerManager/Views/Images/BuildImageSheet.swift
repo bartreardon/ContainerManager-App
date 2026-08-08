@@ -212,23 +212,7 @@ struct BuildImageSheet: View {
     }
 
     private var logView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(session.log.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    Color.clear.frame(height: 1).id("end")
-                }
-                .padding(6)
-            }
-            .frame(height: 160)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
-            .onChange(of: session.log.count) { proxy.scrollTo("end") }
-        }
+        StreamedLogView(lines: session.log)
     }
 
     private func refreshSaved() {

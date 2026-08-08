@@ -18,25 +18,7 @@ struct StackRunView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if !log.isEmpty {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 2) {
-                            ForEach(Array(log.enumerated()), id: \.offset) { _, line in
-                                Text(line)
-                                    .font(.caption.monospaced())
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            Color.clear.frame(height: 1).id("end")
-                        }
-                        .padding(6)
-                    }
-                    // Fixed, not max: with maxHeight the box grew as lines arrived, so
-                    // the enclosing form scrolled to a target that then moved below the
-                    // fold. A stable height keeps the run area where it was scrolled to.
-                    .frame(height: 120)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
-                    .onChange(of: log.count) { proxy.scrollTo("end") }
-                }
+                StreamedLogView(lines: log, height: 120)
             }
             // One status area of a stable height, so the section doesn't grow (and shift
             // the scroll position) as the detail line or the result row appear.
