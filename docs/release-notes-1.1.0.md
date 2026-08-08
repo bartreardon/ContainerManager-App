@@ -72,5 +72,5 @@ them. Group headers collapse with a click and stay collapsed.
 
 On macOS 27 beta, published ports accept a connection and then reset it, so
 `localhost:<port>` doesn't reach a container while its own address still works —
-[apple/container#2029](https://github.com/apple/container/issues/2029). This is
+apple/container issue #2029 . This is
 upstream and not worked around here.
