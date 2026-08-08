@@ -501,11 +501,11 @@ struct ComposeImporterTests {
         #expect(spec.services[1].publishPorts == ["9090:80"])
     }
 
-    /// Recorded, not endorsed: `container_name` is treated as a supported key, so it is
-    /// neither applied nor reported. A compose file naming its containers imports
-    /// silently and gets our own names instead.
-    @Test("container_name is accepted, ignored, and not reported")
-    func containerNameIsSilentlyDropped() throws {
+    /// Containers are named after the stack and service key, so a fixed
+    /// `container_name` can't be honoured — but it has to be *reported*, or a compose
+    /// file that names its containers imports silently and gets different ones.
+    @Test("container_name is reported rather than silently dropped")
+    func containerNameIsReported() throws {
         let document = try importing(
             """
             services:
@@ -514,6 +514,9 @@ struct ComposeImporterTests {
                 container_name: my-database
             """)
         #expect(document.services.map(\.key) == ["db"])
-        #expect(document.notes?.contains("container_name") == false)
+        let notes = try #require(document.notes)
+        #expect(notes.contains("db.container_name:"))
+        #expect(notes.contains("named after the stack and the service"))
+        #expect(ComposeImporter.hasLosses(notes))
     }
 }
