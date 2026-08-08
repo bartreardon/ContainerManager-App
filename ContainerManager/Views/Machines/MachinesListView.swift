@@ -113,17 +113,8 @@ struct MachinesListView: View {
 
     private func openInTerminalApp(_ id: String) {
         Task {
-            switch await TerminalLauncher.openMachineShell(machineId: id) {
-            case .opened, .openedViaFallback:
-                break
-            case .automationDenied:
-                store.lastError = PresentedError(
-                    title: "Terminal access needed",
-                    message: "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
-                )
-            case .failed(let message):
-                store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
-            }
+            store.lastError = TerminalLauncher.presentedError(
+                for: await TerminalLauncher.openMachineShell(machineId: id))
         }
     }
 

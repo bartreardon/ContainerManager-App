@@ -20,6 +20,25 @@ enum TerminalLauncher {
     private static let notPermittedErrorCode = -1743
 
     /// Opens an interactive shell to the given machine in Terminal.app.
+    /// The failure to show for `result`, or nil when a terminal opened.
+    ///
+    /// Lives here because every caller reported the same two failures in the same
+    /// words, and a launch that opened via the fallback is still a launch.
+    static func presentedError(for result: ShellResult) -> PresentedError? {
+        switch result {
+        case .opened, .openedViaFallback:
+            nil
+        case .automationDenied:
+            PresentedError(
+                title: "Terminal access needed",
+                message:
+                    "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
+            )
+        case .failed(let message):
+            PresentedError(title: "Failed to open Terminal", message: message)
+        }
+    }
+
     static func openMachineShell(machineId: String) async -> ShellResult {
         await openShell(
             command: "'\(CLIRunner.containerBinary)' machine run --name \(machineId)",
