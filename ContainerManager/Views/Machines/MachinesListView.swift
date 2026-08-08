@@ -66,7 +66,7 @@ struct MachinesListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) machines?"
                 : "Delete the machine “\(deleteCandidates.first ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let ids = deleteCandidates
@@ -77,18 +77,8 @@ struct MachinesListView: View {
             Text("Each machine will be stopped and its disk contents permanently removed.")
         }
         .errorAlert($store.lastError)
-        .onAppear(perform: consumeCreate)
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
-        }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+        .onCreateRequest(for: .machines) { showCreateSheet = true }
+        .autoRefresh { await store.refresh() }
     }
 
     @ViewBuilder
@@ -113,26 +103,11 @@ struct MachinesListView: View {
 
     private func openInTerminalApp(_ id: String) {
         Task {
-            switch await TerminalLauncher.openMachineShell(machineId: id) {
-            case .opened, .openedViaFallback:
-                break
-            case .automationDenied:
-                store.lastError = PresentedError(
-                    title: "Terminal access needed",
-                    message: "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
-                )
-            case .failed(let message):
-                store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
-            }
+            store.lastError = TerminalLauncher.presentedError(
+                for: await TerminalLauncher.openMachineShell(machineId: id))
         }
     }
 
-    private func consumeCreate() {
-        if router.pendingCreate == .machines {
-            showCreateSheet = true
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct MachineRow: View {

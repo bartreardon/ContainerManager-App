@@ -19,7 +19,7 @@ struct ContainerManagerApp: App {
     @State private var stacksStore = StacksStore()
     @State private var imageImportModel = ImageImportModel()
 
-    @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
+    @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -90,7 +90,7 @@ enum AppWindows {
 /// off, so the app always has at least one way to reach it.
 enum DockIcon {
     static func update() {
-        let menuBarShown = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
+        let menuBarShown = AppDefaults.showMenuBarIcon
         let hide = !AppWindows.hasOrdinaryVisible && menuBarShown
         NSApplication.shared.setActivationPolicy(hide ? .accessory : .regular)
     }

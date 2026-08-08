@@ -38,7 +38,7 @@ enum ComposeImporter {
     }
 
     static let supportedServiceKeys: Set<String> = [
-        "image", "environment", "ports", "volumes", "depends_on", "container_name", "command",
+        "image", "environment", "ports", "volumes", "depends_on", "command",
         "platform",
     ]
 
@@ -265,6 +265,8 @@ enum ComposeImporter {
             "host and kernel tuning isn't supported"
         case "logging":
             "logging drivers aren't configurable; output is available from the container"
+        case "container_name":
+            "containers are named after the stack and the service, so the stack can be created more than once without the names colliding"
         case "user":
             "running as a different user isn't supported"
         case "working_dir":

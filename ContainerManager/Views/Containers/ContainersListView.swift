@@ -102,7 +102,7 @@ struct ContainersListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) containers?"
                 : "Delete the container “\(deleteCandidates.first ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let ids = deleteCandidates
@@ -113,18 +113,8 @@ struct ContainersListView: View {
             Text("This permanently removes the container.")
         }
         .errorAlert($store.lastError)
-        .onAppear(perform: consumeCreate)
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
-        }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+        .onCreateRequest(for: .containers) { showCreateSheet = true }
+        .autoRefresh { await store.refresh() }
     }
 
     /// Acts on the whole group. Without this the List's selection menu applies to a
@@ -175,17 +165,8 @@ struct ContainersListView: View {
 
     private func openInTerminalApp(_ id: String) {
         Task {
-            switch await TerminalLauncher.openContainerShell(containerId: id) {
-            case .opened, .openedViaFallback:
-                break
-            case .automationDenied:
-                store.lastError = PresentedError(
-                    title: "Terminal access needed",
-                    message: "Enable ContainerManager under Automation in Privacy & Security settings, then try again."
-                )
-            case .failed(let message):
-                store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
-            }
+            store.lastError = TerminalLauncher.presentedError(
+                for: await TerminalLauncher.openContainerShell(containerId: id))
         }
     }
 
@@ -208,12 +189,6 @@ struct ContainersListView: View {
         }
     }
 
-    private func consumeCreate() {
-        if router.pendingCreate == .containers {
-            showCreateSheet = true
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct ContainerRow: View {

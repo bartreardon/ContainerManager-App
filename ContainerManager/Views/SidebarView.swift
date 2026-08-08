@@ -56,7 +56,10 @@ struct SystemStatusFooter: View {
                 Text(systemStore.status.label)
                     .font(.callout)
                 if let update = systemStore.availableUpdate {
-                    Button("Update to \(update)…") { systemStore.promptUpdate() }
+                    Button("Update to \(update)…") {
+                        systemStore.promptUpdate()
+                        UpdateAlert.presentPending(systemStore)
+                    }
                         .buttonStyle(.link)
                         .font(.caption2)
                 } else if let health = systemStore.health {

@@ -12,7 +12,10 @@ import Foundation
 /// Everything here is knowable up front, so it's reported in one go and nothing is
 /// created until it's clean.
 enum StackValidator {
-    struct Issue {
+    // Validation runs off the main actor, so its results are declared outside it too:
+    // the project isolates to `@MainActor` by default, which these would otherwise
+    // inherit, and `Failure` is thrown across that boundary.
+    nonisolated struct Issue {
         /// The service the problem belongs to; empty for stack-level problems.
         let service: String
         let message: String
@@ -20,7 +23,7 @@ enum StackValidator {
         var described: String { service.isEmpty ? message : "\(service): \(message)" }
     }
 
-    struct Failure: LocalizedError {
+    nonisolated struct Failure: LocalizedError {
         let issues: [Issue]
 
         var errorDescription: String? {

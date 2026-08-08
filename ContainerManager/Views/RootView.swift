@@ -85,12 +85,10 @@ struct RootView: View {
         .onChange(of: router.section) { storedSection = router.section.rawValue }
         .errorAlert($systemStore.lastError)
         .task { await systemStore.autoCheckForUpdatesIfDue() }
-        .task {
-            while !Task.isCancelled {
-                await systemStore.refresh()
-                let interval: Duration = systemStore.isReady ? .seconds(15) : .seconds(5)
-                try? await Task.sleep(for: interval)
-            }
+        // Slower once everything is up: this only watches for the subsystem going
+        // away, while the visible list polls its own store.
+        .autoRefresh(every: { systemStore.isReady ? .seconds(15) : .seconds(5) }) {
+            await systemStore.refresh()
         }
     }
 

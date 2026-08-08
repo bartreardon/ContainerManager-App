@@ -9,10 +9,10 @@ import SwiftUI
 /// App preferences (⌘,). Keys are shared with the rest of the app via `@AppStorage`:
 /// `containerBinaryPath` is read by `CLIPathResolver`; `listRefreshSeconds` by the lists.
 struct SettingsView: View {
-    @AppStorage("containerBinaryPath") private var cliPath = ""
-    @AppStorage("listRefreshSeconds") private var refreshSeconds = 5
+    @AppStorage(CLIPathResolver.overrideKey) private var cliPath = ""
+    @AppStorage(AppDefaults.listRefreshKey) private var refreshSeconds = 5
     @AppStorage(AppDefaults.updateCheckFrequencyKey) private var updateFrequency = UpdateCheckFrequency.weekly.rawValue
-    @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
+    @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
     @Environment(SystemStore.self) private var systemStore
 
     var body: some View {
@@ -72,7 +72,10 @@ struct SettingsView: View {
                     "Apple container", installed: systemStore.installedContainerVersion,
                     available: systemStore.availableUpdate
                 ) {
-                    Button("Update…") { systemStore.promptUpdate() }
+                    Button("Update…") {
+                        systemStore.promptUpdate()
+                        UpdateAlert.presentPending(systemStore)
+                    }
                 }
                 Picker("Check automatically", selection: $updateFrequency) {
                     ForEach(UpdateCheckFrequency.allCases) { frequency in
@@ -81,7 +84,10 @@ struct SettingsView: View {
                 }
                 HStack {
                     Button("Check Now") {
-                        Task { await systemStore.checkForUpdates(force: true) }
+                        Task {
+                            await systemStore.checkForUpdates(force: true)
+                            UpdateAlert.presentPending(systemStore)
+                        }
                     }
                     Spacer()
                     Text(lastCheckedText)

@@ -54,8 +54,19 @@ final class VolumesStore {
         await refresh()
     }
 
+    /// Measures new volumes immediately, and re-measures everything occasionally.
+    ///
+    /// Disk usage is a per-volume call into the runtime, so doing it on every refresh
+    /// would be wasteful — but only ever measuring unseen volumes meant a growing
+    /// database showed the size it had when the app started, for as long as it ran.
+    /// How often every volume's size is re-measured, rather than only new ones.
+    private static let sizeRescanInterval: TimeInterval = 60
+    private var lastSizeScan = Date.distantPast
+
     private func updateSizes() async {
-        for volume in volumes where sizes[volume.name] == nil {
+        let rescanAll = Date().timeIntervalSince(lastSizeScan) >= Self.sizeRescanInterval
+        if rescanAll { lastSizeScan = Date() }
+        for volume in volumes where rescanAll || sizes[volume.name] == nil {
             if let size = try? await ClientVolume.volumeDiskUsage(name: volume.name) {
                 sizes[volume.name] = size
             }

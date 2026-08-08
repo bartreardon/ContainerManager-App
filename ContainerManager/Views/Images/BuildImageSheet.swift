@@ -37,6 +37,8 @@ struct BuildImageSheet: View {
     }
 
     @State private var session = BuildSession()
+    /// Held so the build can be stopped — a `container build` runs for minutes.
+    @State private var buildTask: Task<Void, Never>?
     @State private var built = false
     @State private var builtTag: String?
     @State private var error: PresentedError?
@@ -186,9 +188,11 @@ struct BuildImageSheet: View {
                 Spacer()
                 if session.isBuilding {
                     ProgressView().controlSize(.small)
+                    Button("Stop") { buildTask?.cancel() }
+                        .help("Stop the build")
                 }
                 Button(built ? "Done" : "Cancel") { dismiss() }
-                Button("Build") { Task { await build() } }
+                Button("Build") { buildTask = Task { await build() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canBuild)
             }
@@ -196,6 +200,9 @@ struct BuildImageSheet: View {
         }
         .frame(width: 560, height: 640)
         .task { refreshSaved() }
+        // Closing the sheet mid-build used to leave `container build` running with
+        // nothing showing its progress and nowhere for its failure to go.
+        .onDisappear { buildTask?.cancel() }
         .sheet(isPresented: $showMachineCreate) {
             MachineCreateSheet(initialImage: builtTag)
         }
@@ -205,23 +212,7 @@ struct BuildImageSheet: View {
     }
 
     private var logView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(session.log.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    Color.clear.frame(height: 1).id("end")
-                }
-                .padding(6)
-            }
-            .frame(height: 160)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
-            .onChange(of: session.log.count) { proxy.scrollTo("end") }
-        }
+        StreamedLogView(lines: session.log)
     }
 
     private func refreshSaved() {
@@ -312,6 +303,10 @@ struct BuildImageSheet: View {
             built = true
             await imagesStore.refresh()
             refreshSaved()
+        } catch is CancellationError {
+            // Asked for, so not a failure — but say so, since partial output stays on
+            // screen and would otherwise look like the build simply stopped short.
+            session.log.append("— stopped —")
         } catch {
             self.error = PresentedError(title: "Build failed", error: error)
         }

@@ -39,6 +39,13 @@ them. Group headers collapse with a click and stay collapsed.
   stack whose site was already up, and "Open in Browser" stayed enabled when the
   web service was down. Both now check the service that actually serves the
   address.
+- **A build couldn't be stopped.** `container build` runs for minutes and there
+  was no way to interrupt it — closing the sheet left it building with nothing
+  showing its progress. The Build Image sheet now has a **Stop** button, and
+  closing it stops the build.
+- **Cancel now cancels.** On the machine, container and pull sheets, Cancel
+  closed the sheet but left the work running, and if it then failed there was
+  nowhere for the failure to appear. It now stops the work on the way out.
 
 ## Changed
 
@@ -48,6 +55,14 @@ them. Group headers collapse with a click and stay collapsed.
   Delete — sit together on the detail side. Delete is a direct button everywhere,
   rather than hiding inside the ⋯ menu on Machines and Containers.
 - **Long operations show progress** and reveal the finished file in Finder.
+- **Live logs stay responsive, and can be copied.** A long build's output no
+  longer slows the sheet down as it arrives, and build, stack-run and
+  service-start logs can now be selected and copied in one go.
+- **Built in Swift 6 language mode.** Data passing between the interface and the
+  work going on behind it is now checked by the compiler rather than taken on
+  trust — the class of mistake that surfaces as a glitch nobody can reproduce.
+  Nothing was misbehaving; four places that relied on convention now state what
+  they were already doing.
 - **Built against container 1.2.1**, and **the minimum supported version is now
   1.2.0** — the oldest daemon these libraries have been verified against. Older
   ones failed obscurely over XPC rather than prompting you to update; you'll now

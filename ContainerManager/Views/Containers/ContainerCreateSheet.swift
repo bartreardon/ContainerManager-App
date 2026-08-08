@@ -31,6 +31,8 @@ struct ContainerCreateSheet: View {
 
     @State private var progress = GuiProgress()
     @State private var isCreating = false
+    /// Held so Cancel can stop the work rather than only closing the sheet.
+    @State private var task: Task<Void, Never>?
     @State private var error: PresentedError?
 
     var body: some View {
@@ -140,10 +142,11 @@ struct ContainerCreateSheet: View {
                 }
                 Spacer()
                 Button("Cancel") {
+                    task?.cancel()
                     dismiss()
                 }
                 Button("Create") {
-                    Task { await create() }
+                    task = Task { await create() }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isCreating || image.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -151,6 +154,7 @@ struct ContainerCreateSheet: View {
             .padding(14)
         }
         .frame(width: 500)
+        .onDisappear { task?.cancel() }
         .task {
             if networksStore.networks.isEmpty {
                 await networksStore.refresh()
@@ -217,6 +221,8 @@ struct ContainerCreateSheet: View {
         do {
             try await store.create(spec: spec, progress: progress)
             dismiss()
+        } catch is CancellationError {
+            // Asked for — the sheet is already closing.
         } catch {
             self.error = PresentedError(title: "Failed to create container", error: error)
         }

@@ -114,7 +114,7 @@ struct VolumesListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) volumes?"
                 : "Delete the volume “\(deleteCandidates.first ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let ids = deleteCandidates
@@ -126,7 +126,7 @@ struct VolumesListView: View {
         }
         .alert(
             labelTargets.count > 1 ? "Group \(labelTargets.count) Volumes" : "Set Volume Label",
-            isPresented: labelBinding
+            isPresented: Binding(presenceOf: $labelTargets)
         ) {
             TextField("Label", text: $labelText)
             Button("Set") {
@@ -144,22 +144,8 @@ struct VolumesListView: View {
             Text("Volumes sharing a label are grouped together in this list.")
         }
         .errorAlert($store.lastError)
-        .onAppear(perform: consumeCreate)
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
-        }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
-    }
-
-    private var labelBinding: Binding<Bool> {
-        Binding(get: { !labelTargets.isEmpty }, set: { if !$0 { labelTargets = [] } })
+        .onCreateRequest(for: .volumes) { showCreateSheet = true }
+        .autoRefresh { await store.refresh() }
     }
 
     /// Actions for a whole group, so right-clicking a header acts on the group rather
@@ -196,12 +182,6 @@ struct VolumesListView: View {
         }
     }
 
-    private func consumeCreate() {
-        if router.pendingCreate == .volumes {
-            showCreateSheet = true
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct VolumeRow: View {

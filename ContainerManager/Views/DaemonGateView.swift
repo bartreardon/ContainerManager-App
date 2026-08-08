@@ -94,24 +94,7 @@ struct DaemonGateView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if !systemStore.actionOutput.isEmpty {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 2) {
-                            ForEach(Array(systemStore.actionOutput.enumerated()), id: \.offset) { _, line in
-                                Text(line)
-                                    .font(.caption.monospaced())
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            Color.clear.frame(height: 1).id("bottom")
-                        }
-                        .padding(8)
-                    }
-                    .frame(maxHeight: 180)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
-                    .onChange(of: systemStore.actionOutput.count) {
-                        proxy.scrollTo("bottom")
-                    }
-                }
+                StreamedLogView(lines: systemStore.actionOutput, height: 180)
             }
         }
         .padding(24)

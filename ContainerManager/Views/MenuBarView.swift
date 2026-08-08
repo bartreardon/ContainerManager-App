@@ -19,20 +19,15 @@ struct MenuBarLabel: View {
     var body: some View {
         Image(systemName: systemStore.status.menuBarSymbol)
             .accessibilityLabel("ContainerManager — \(systemStore.status.label)")
-            .task { await pollLoop() }
-    }
-
-    private func pollLoop() async {
-        while !Task.isCancelled {
-            await systemStore.refresh()
-            // Machine/stack clients only work once the subsystem is ready; skip them
-            // otherwise so a stopped daemon doesn't raise errors.
-            if systemStore.isReady {
-                await machinesStore.refresh()
-                await stacksStore.refresh()
+            .autoRefresh {
+                await systemStore.refresh()
+                // Machine/stack clients only work once the subsystem is ready; skip
+                // them otherwise so a stopped daemon doesn't raise errors.
+                if systemStore.isReady {
+                    await machinesStore.refresh()
+                    await stacksStore.refresh()
+                }
             }
-            try? await Task.sleep(for: AppDefaults.listRefresh)
-        }
     }
 }
 

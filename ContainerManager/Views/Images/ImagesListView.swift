@@ -162,7 +162,7 @@ struct ImagesListView: View {
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) images?"
                 : "Delete the image “\(deleteCandidates.first?.shortImageReference ?? "")”?",
-            isPresented: deleteBinding
+            isPresented: Binding(presenceOf: $deleteCandidates)
         ) {
             Button("Delete", role: .destructive) {
                 let refs = deleteCandidates
@@ -173,26 +173,16 @@ struct ImagesListView: View {
             Text("This removes the image\(deleteCandidates.count > 1 ? "s" : "") from local storage.")
         }
         .errorAlert($store.lastError)
-        .onAppear {
-            consumePendingImport()
-            consumeCreate()
-        }
+        .onAppear(perform: consumePendingImport)
         .onChange(of: imageImport.pendingDockerfile) { consumePendingImport() }
-        .onChange(of: router.pendingCreate) { consumeCreate() }
-        .task {
-            while !Task.isCancelled {
-                await store.refresh()
-                // Those two stores are refreshed by their own lists, which aren't on
-                // screen here — without this the "Unused" badges would go stale.
-                await containersStore.refresh()
-                await machinesStore.refresh()
-                try? await Task.sleep(for: AppDefaults.listRefresh)
-            }
+        .onCreateRequest(for: .images) { buildRequest = BuildRequest() }
+        .autoRefresh {
+            await store.refresh()
+            // Those two stores are refreshed by their own lists, which aren't on
+            // screen here — without this the "Unused" badges would go stale.
+            await containersStore.refresh()
+            await machinesStore.refresh()
         }
-    }
-
-    private var deleteBinding: Binding<Bool> {
-        Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
     /// Acts on the whole group. Without this the List's selection menu applies to a
@@ -300,12 +290,6 @@ struct ImagesListView: View {
     }
 
     /// New ▸ Image (menu/context) opens the Build sheet.
-    private func consumeCreate() {
-        if router.pendingCreate == .images {
-            buildRequest = BuildRequest()
-            router.pendingCreate = nil
-        }
-    }
 }
 
 struct ImageRow: View {
@@ -341,68 +325,5 @@ struct ImageRow: View {
             }
         }
         .padding(.vertical, 2)
-    }
-}
-
-struct ImageDetailView: View {
-    let reference: String?
-    @Environment(ImagesStore.self) private var store
-    @State private var showDeleteConfirmation = false
-    @State private var showContainerCreate = false
-    @State private var showMachineCreate = false
-
-    var body: some View {
-        if let reference, let image = store.images.first(where: { $0.reference == reference }) {
-            Form {
-                Section("Image") {
-                    LabeledContent("Reference", value: image.reference)
-                    LabeledContent("Digest", value: image.digest)
-                    if let size = store.sizes[image.digest] {
-                        LabeledContent("Size", value: Format.bytes(size))
-                    }
-                }
-                Section("Use Image") {
-                    Button {
-                        showContainerCreate = true
-                    } label: {
-                        Label("Run Container from Image", systemImage: "shippingbox")
-                    }
-                    Button {
-                        showMachineCreate = true
-                    } label: {
-                        Label("Create Machine from Image", systemImage: "desktopcomputer")
-                    }
-                }
-            }
-            .formStyle(.grouped)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = true
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                    .help("Delete this image")
-                }
-            }
-            .confirmationDialog(
-                "Delete the image “\(image.reference.shortImageReference)”?",
-                isPresented: $showDeleteConfirmation
-            ) {
-                Button("Delete", role: .destructive) {
-                    Task { await store.delete(reference: image.reference) }
-                }
-            } message: {
-                Text("This removes the image from local storage.")
-            }
-            .sheet(isPresented: $showContainerCreate) {
-                ContainerCreateSheet(initialImage: image.reference.shortImageReference)
-            }
-            .sheet(isPresented: $showMachineCreate) {
-                MachineCreateSheet(initialImage: image.reference.shortImageReference)
-            }
-        } else {
-            ContentUnavailableView("Select an Image", systemImage: "opticaldiscdrive")
-        }
     }
 }

@@ -43,9 +43,20 @@ enum StackLog {
         let stamp = Date().formatted(date: .abbreviated, time: .standard)
         let entry = "===== \(stamp) — \(section) =====\n" + body.joined(separator: "\n") + "\n\n"
 
-        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        try? (existing + entry).write(to: url, atomically: true, encoding: .utf8)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        let data = Data(entry.utf8)
+        // Appended rather than read-all + write-all: a stack's log is written a section
+        // at a time across its whole life, so rewriting made each entry cost more than
+        // the last. Permissions are set only when the file is created; an existing one
+        // keeps the ones it has.
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            try? data.write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
     }
 
     static func read(for stackName: String) -> String {
