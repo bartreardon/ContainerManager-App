@@ -17,11 +17,27 @@
 		CC04E0372FFFA770009272FC /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000108 /* Yams */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		CCAA000000000000000000A8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CCCB1D0F2FDC34A50080B7ED /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CCCB1D162FDC34A50080B7ED;
+			remoteInfo = ContainerManager;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		CCAA000000000000000000A2 /* ContainerManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ContainerManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCCB1D172FDC34A50080B7ED /* ContainerManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContainerManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		CCAA000000000000000000A1 /* ContainerManagerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ContainerManagerTests;
+			sourceTree = "<group>";
+		};
 		CCCB1D192FDC34A50080B7ED /* ContainerManager */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ContainerManager;
@@ -30,6 +46,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		CCAA000000000000000000A5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CCCB1D142FDC34A50080B7ED /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -52,6 +75,7 @@
 			isa = PBXGroup;
 			children = (
 				CCCB1D192FDC34A50080B7ED /* ContainerManager */,
+				CCAA000000000000000000A1 /* ContainerManagerTests */,
 				CCCB1D182FDC34A50080B7ED /* Products */,
 			);
 			sourceTree = "<group>";
@@ -60,6 +84,7 @@
 			isa = PBXGroup;
 			children = (
 				CCCB1D172FDC34A50080B7ED /* ContainerManager.app */,
+				CCAA000000000000000000A2 /* ContainerManagerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,6 +92,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		CCAA000000000000000000A3 /* ContainerManagerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CCAA000000000000000000AB /* Build configuration list for PBXNativeTarget "ContainerManagerTests" */;
+			buildPhases = (
+				CCAA000000000000000000A4 /* Sources */,
+				CCAA000000000000000000A5 /* Frameworks */,
+				CCAA000000000000000000A6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CCAA000000000000000000A7 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CCAA000000000000000000A1 /* ContainerManagerTests */,
+			);
+			name = ContainerManagerTests;
+			packageProductDependencies = (
+			);
+			productName = ContainerManagerTests;
+			productReference = CCAA000000000000000000A2 /* ContainerManagerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		CCCB1D162FDC34A50080B7ED /* ContainerManager */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = CCCB1D222FDC34A60080B7ED /* Build configuration list for PBXNativeTarget "ContainerManager" */;
@@ -107,6 +155,10 @@
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					CCAA000000000000000000A3 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = CCCB1D162FDC34A50080B7ED;
+					};
 					CCCB1D162FDC34A50080B7ED = {
 						CreatedOnToolsVersion = 26.4;
 					};
@@ -132,11 +184,19 @@
 			projectRoot = "";
 			targets = (
 				CCCB1D162FDC34A50080B7ED /* ContainerManager */,
+				CCAA000000000000000000A3 /* ContainerManagerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		CCAA000000000000000000A6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CCCB1D152FDC34A50080B7ED /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -147,6 +207,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		CCAA000000000000000000A4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CCCB1D132FDC34A50080B7ED /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -156,7 +223,55 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		CCAA000000000000000000A7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CCCB1D162FDC34A50080B7ED /* ContainerManager */;
+			targetProxy = CCAA000000000000000000A8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		CCAA000000000000000000A9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManagerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ContainerManager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ContainerManager";
+			};
+			name = Debug;
+		};
+		CCAA000000000000000000AA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManagerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ContainerManager.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ContainerManager";
+			};
+			name = Release;
+		};
 		CCCB1D202FDC34A60080B7ED /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -356,6 +471,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		CCAA000000000000000000AB /* Build configuration list for PBXNativeTarget "ContainerManagerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCAA000000000000000000A9 /* Debug */,
+				CCAA000000000000000000AA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		CCCB1D122FDC34A50080B7ED /* Build configuration list for PBXProject "ContainerManager" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
