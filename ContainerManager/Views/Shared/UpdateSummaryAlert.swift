@@ -25,8 +25,9 @@ extension View {
     /// Presents the pending update summary, if any.
     ///
     /// Attached to both the main window and Settings, since a check can be started from
-    /// either — but only the key window presents, so two open windows don't put up the
-    /// same alert twice.
+    /// either. With both windows open they present together — but they share one value,
+    /// so answering either clears it and both close. An earlier attempt to show it only
+    /// in the key window, via `controlActiveState`, stopped it appearing at all.
     func updateSummaryAlert(_ store: SystemStore) -> some View {
         modifier(UpdateSummaryAlert(store: store))
     }
@@ -34,13 +35,12 @@ extension View {
 
 private struct UpdateSummaryAlert: ViewModifier {
     let store: SystemStore
-    @Environment(\.controlActiveState) private var activeState
 
     func body(content: Content) -> some View {
         content.alert(
             store.updateSummary?.title ?? "Software Update",
             isPresented: Binding(
-                get: { store.updateSummary != nil && activeState == .key },
+                get: { store.updateSummary != nil },
                 set: { if !$0 { store.updateSummary = nil } }
             ),
             presenting: store.updateSummary
