@@ -9,7 +9,7 @@ import Foundation
 /// `sh -c "a && b"` survives as one argument instead of being torn apart on spaces.
 enum ShellWords {
     /// Splits `text` into arguments, honouring single and double quotes.
-    static func split(_ text: String) -> [String] {
+    nonisolated static func split(_ text: String) -> [String] {
         var args: [String] = []
         var current = ""
         var quote: Character?
@@ -44,7 +44,7 @@ enum ShellWords {
 
     /// Joins arguments into a command line, quoting any that need it so the result
     /// splits back into the same arguments.
-    static func join(_ args: [String]) -> String {
+    nonisolated static func join(_ args: [String]) -> String {
         args.map { arg in
             if arg.isEmpty { return "\"\"" }
             guard arg.contains(where: { $0.isWhitespace || $0 == "\"" || $0 == "'" }) else { return arg }

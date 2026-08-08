@@ -57,7 +57,7 @@ enum VolumeGrouping {
     }
 
     /// The volume name in a mount spec, or nil when it's a host bind mount.
-    static func volumeName(inMount mount: String) -> String? {
+    nonisolated static func volumeName(inMount mount: String) -> String? {
         guard let source = mount.split(separator: ":").first.map(String.init) else { return nil }
         return source.hasPrefix("/") || source.hasPrefix("~") || source.hasPrefix(".") ? nil : source
     }
