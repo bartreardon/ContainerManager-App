@@ -93,6 +93,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .updateSummaryAlert(systemStore)
         .frame(width: 460, height: 520)
     }
 

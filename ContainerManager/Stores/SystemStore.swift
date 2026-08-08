@@ -24,6 +24,9 @@ final class SystemStore {
     /// Short progress message during install.
     private(set) var busyMessage: String?
     var lastError: PresentedError?
+    /// A pending update message for the interface to present. The store decides what
+    /// there is to say and what can be done about it; the view decides how it looks.
+    var updateSummary: UpdateSummary?
 
     /// Latest container release available on GitHub when it's newer than the installed
     /// CLI; nil when up to date or unknown. Drives the passive "update available" badge.
@@ -158,6 +161,12 @@ final class SystemStore {
         case unknown(String)    // reason it couldn't be determined
 
         var isUpdate: Bool { if case .available = self { return true }; return false }
+
+        /// The newer version, when there is one.
+        var availableVersion: String? {
+            if case .available(let version) = self { return version }
+            return nil
+        }
     }
 
     /// Checks both ContainerManager and the container tool against their latest GitHub
@@ -218,14 +227,11 @@ final class SystemStore {
     /// Offers to update to the already-detected available container release (badge/Settings).
     func promptUpdate() {
         guard let availableUpdate else { return }
-        let alert = NSAlert()
-        alert.messageText = "Update Available"
-        alert.informativeText = "container \(availableUpdate) is available. Update now?"
-        alert.addButton(withTitle: "Update…")
-        alert.addButton(withTitle: "Later")
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await applyUpdate() }
-        }
+        updateSummary = UpdateSummary(
+            title: "Update Available",
+            message: "container \(availableUpdate) is available. Update now?",
+            container: availableUpdate,
+            app: nil)
     }
 
     /// Opens the ContainerManager release page for a manual download (no self-update).
@@ -250,27 +256,14 @@ final class SystemStore {
     }
 
     private func presentUpdateSummary(app: UpdateOutcome, container: UpdateOutcome) {
-        let alert = NSAlert()
-        alert.messageText = "Software Update"
-        alert.informativeText = """
-            ContainerManager — \(summaryLine(app))
-            Apple container — \(summaryLine(container))
-            """
-
-        if container.isUpdate { alert.addButton(withTitle: "Update container…") }
-        if app.isUpdate { alert.addButton(withTitle: "Get ContainerManager…") }
-        alert.addButton(withTitle: (app.isUpdate || container.isUpdate) ? "Later" : "OK")
-
-        // Buttons are added in the order above; map the response to the matching action.
-        var index = NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
-        let response = alert.runModal().rawValue
-        if container.isUpdate {
-            if response == index { Task { await applyUpdate() }; return }
-            index += 1
-        }
-        if app.isUpdate, response == index {
-            openAppReleasePage()
-        }
+        updateSummary = UpdateSummary(
+            title: "Software Update",
+            message: """
+                ContainerManager — \(summaryLine(app))
+                Apple container — \(summaryLine(container))
+                """,
+            container: container.availableVersion,
+            app: app.availableVersion)
     }
 
     private func summaryLine(_ outcome: UpdateOutcome) -> String {

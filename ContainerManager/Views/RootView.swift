@@ -84,6 +84,7 @@ struct RootView: View {
         }
         .onChange(of: router.section) { storedSection = router.section.rawValue }
         .errorAlert($systemStore.lastError)
+        .updateSummaryAlert(systemStore)
         .task { await systemStore.autoCheckForUpdatesIfDue() }
         .task {
             while !Task.isCancelled {
