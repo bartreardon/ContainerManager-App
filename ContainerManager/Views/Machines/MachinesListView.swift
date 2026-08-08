@@ -50,7 +50,7 @@ struct MachinesListView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showCreateSheet = true
                 } label: {

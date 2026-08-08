@@ -6,6 +6,7 @@
 import AppKit
 import ContainerResource
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContainersListView: View {
     @Binding var selection: Set<String>
@@ -14,6 +15,8 @@ struct ContainersListView: View {
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
+    @State private var exportStatus: String?
+    @SceneStorage("containerCollapsedGroups") private var collapsedGroups = ""
 
     private var containers: [ContainerSnapshot] {
         guard !searchText.isEmpty else { return store.containers }
@@ -23,20 +26,54 @@ struct ContainersListView: View {
         }
     }
 
+    @ViewBuilder
+    private func row(_ container: ContainerSnapshot) -> some View {
+        ContainerRow(container: container)
+            .tag(container.id)
+            .draggable(container.id)
+            .copyable([container.id])
+    }
+
+    /// Containers bucketed by the stack they belong to; standalone ones last.
+    private var groups: [(name: String, items: [ContainerSnapshot])] {
+        let bucketed = Dictionary(grouping: containers) {
+            $0.configuration.labels[StackLabels.stack] ?? ListGroups.ungrouped
+        }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.id < $1.id }) })
+    }
+
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(containers, id: \.id) { container in
-                ContainerRow(container: container)
-                    .tag(container.id)
-                    .draggable(container.id)
-                    .copyable([container.id])
+            let groups = groups
+            // Sections would be noise when nothing belongs to a stack.
+            if groups.count == 1, groups[0].name == ListGroups.ungrouped {
+                ForEach(groups[0].items, id: \.id) { row($0) }
+            } else {
+                ForEach(groups, id: \.name) { group in
+                    let expanded = ListGroups.expansion(of: group.name, collapsed: $collapsedGroups)
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(group.items, id: \.id) { row($0) }
+                        }
+                    } header: {
+                        GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                            .contextMenu { groupMenu(group) }
+                    }
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter containers")
+        .overlay(alignment: .bottom) {
+            if let exportStatus {
+                BusyBanner(text: exportStatus)
+            }
+        }
+        .animation(.default, value: exportStatus)
         .overlay {
             if store.containers.isEmpty {
                 ContentUnavailableView {
@@ -49,7 +86,7 @@ struct ContainersListView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showCreateSheet = true
                 } label: {
@@ -90,6 +127,26 @@ struct ContainersListView: View {
         Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
+    /// Acts on the whole group. Without this the List's selection menu applies to a
+    /// header right-click and treats the group's name as an item id.
+    @ViewBuilder
+    private func groupMenu(_ group: (name: String, items: [ContainerSnapshot])) -> some View {
+        let ids = Set(group.items.map(\.id))
+        let running = group.items.filter { $0.status == .running }.map(\.id)
+        Button("Select All") { selection = ids }
+        Button("Copy Names") { Pasteboard.copy(ids.sorted()) }
+        if running.count < ids.count {
+            Button("Start") { Task { for id in ids { await store.start(id: id) } } }
+        }
+        if !running.isEmpty {
+            Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
+        }
+        Divider()
+        Button("Delete \(ids.count) Container\(ids.count == 1 ? "" : "s")…", role: .destructive) {
+            deleteCandidates = ids
+        }
+    }
+
     @ViewBuilder
     private func rowMenu(_ ids: Set<String>) -> some View {
         if ids.isEmpty {
@@ -107,6 +164,10 @@ struct ContainersListView: View {
                 Button("Open in Terminal.app") { openInTerminalApp(id) }
             }
             Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
+            if ids.count == 1, let id = ids.first {
+                Button("Export Filesystem…") { export(id) }
+                    .disabled(exportStatus != nil)
+            }
             Divider()
             Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
@@ -125,6 +186,25 @@ struct ContainersListView: View {
             case .failed(let message):
                 store.lastError = PresentedError(title: "Failed to open Terminal", message: message)
             }
+        }
+    }
+
+    /// Saves the container's filesystem as a tar archive (container 1.2.1+).
+    private func export(_ id: String) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(id).tar"
+        panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
+        panel.message = "Export “\(id)” filesystem as a tar archive"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        exportStatus = "Exporting “\(id)”…"
+        Task {
+            do {
+                try await ContainerExporter.export(id: id, to: url)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch {
+                store.lastError = PresentedError(title: "Export failed", error: error)
+            }
+            exportStatus = nil
         }
     }
 

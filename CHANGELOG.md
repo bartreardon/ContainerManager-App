@@ -2,6 +2,27 @@
 
 All notable changes to ContainerManager.
 
+## 1.1.0 — 2026-08-07
+
+Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
+
+### New
+- **Forward your SSH agent to an image build.** A switch on the Build Image sheet passes `--ssh default`, so a Dockerfile can reach private repositories with `RUN --mount=type=ssh …` without a key ever being written into the image.
+- **Export a container's filesystem.** Right-click a container ▸ **Export Filesystem…** to save it as a tar archive. Useful for inspecting or extracting what's inside a running container — note it's the files only, with no layers or image configuration, and `container` has no matching import, so it doesn't load back.
+- **See which images nothing is using.** Images not referenced by any container (running or stopped) or machine are badged **Unused**, and **Delete Unused Images…** removes them in one go through the usual confirmation. Stopped containers count, which is why deleting an image can appear to free nothing: its data stays alive while something still references it. The runtime's own builder and init images are never listed, so they can't be swept up — though superseded `vminit` versions will show, and are usually the easiest space to reclaim.
+- **Save and load images as archives.** Right-click an image ▸ **Save as Archive…** writes an OCI archive (layers and configuration included), and **Load from Archive…** reads one back. Unlike the container export this genuinely round-trips, so it's the way to move an image to another Mac or keep one that isn't in a registry.
+
+### Fixed
+- **A stack's web UI is judged by the service that serves it.** The menu bar offered to *start* a stack whose site was already up, and "Open in Browser" stayed enabled when the web service was down but something else was running. Both now check the service carrying the web address, so a one-shot init container exiting doesn't misreport the site.
+- **A partly-running stack couldn't be stopped.** The toolbar swapped Start for Stop based on every service running, so a stack containing a one-shot service — an init container that exits by design — could never show Stop at all. Both buttons now hold their positions and enable or disable instead.
+
+### Changed
+- **Consistent toolbars across every section.** Actions that create things (New Machine, New Container, Build/Pull Image, New Network, New Volume, New Stack) sit at the window's leading edge, where Finder puts its own, so they no longer shift sideways when you select something. The selected item's actions — start/stop, item-specific ones, and Delete — sit together at the detail pane's leading edge. Delete is a direct button everywhere now, rather than being tucked inside the ⋯ menu on Machines and Containers.
+- **Saving, loading and exporting show progress**, and reveal the finished file in Finder when they're done.
+- **Lists group things together.** Volumes group by label or the stack that created them; containers and networks by the stack they belong to; images by what uses them, with anything used by more than one thing under **Shared** and the rest under **Unused**. Group headers collapse with a click and stay collapsed across relaunches.
+- **Built against container 1.2.1** (was 1.0.0). Verified against both a 1.2.0 and a 1.2.1 daemon.
+- **The minimum supported container version is now 1.2.0**, up from 1.0.0. That's the oldest daemon the 1.2.1 client libraries have been verified against; older ones failed obscurely over XPC instead of prompting you to update. Exporting a container needs 1.2.1.
+
 ## 1.0.8-1 — 2026-08-06
 
 A rebuild of 1.0.8 fixing stacks that broke when restarted.

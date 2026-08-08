@@ -88,7 +88,7 @@ struct MenuBarView: View {
             ForEach(webStacks) { stack in
                 // Running → open the URL; not running → start the stack (the URL
                 // wouldn't resolve yet).
-                if stack.allRunning, let url = stack.webURL {
+                if stack.webIsRunning, let url = stack.webURL {
                     Button {
                         NSWorkspace.shared.open(url)
                     } label: {

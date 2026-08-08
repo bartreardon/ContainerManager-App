@@ -6,6 +6,8 @@
 import ArgumentParser
 import ContainerAPIClient
 import ContainerPersistence
+import ContainerResource
+import ContainerizationError
 import ContainerizationOCI
 import Foundation
 import MachineAPIClient
@@ -104,7 +106,12 @@ final class MachinesStore {
         ])
 
         let id = spec.name.isEmpty ? Self.derivedName(fromImage: spec.image) : spec.name
-        try Utility.validEntityName(id)
+        // 1.2.x replaced the throwing `Utility.validEntityName` with a Bool check.
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(
+                .invalidArgument,
+                message: "“\(id)” isn’t a valid machine name — use letters, digits, dots, dashes and underscores.")
+        }
 
         let client = MachineClient()
         let (config, resources) = try await MachineClient.machineConfigFromFlags(

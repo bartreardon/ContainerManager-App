@@ -10,24 +10,57 @@ import SwiftUI
 struct NetworksListView: View {
     @Binding var selection: Set<String>
     @Environment(NetworksStore.self) private var store
+    @Environment(StacksStore.self) private var stacksStore
     @Environment(WindowRouter.self) private var router
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
+    @SceneStorage("networkCollapsedGroups") private var collapsedGroups = ""
 
     private var networks: [NetworkResource] {
         guard !searchText.isEmpty else { return store.networks }
         return store.networks.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
+    @ViewBuilder
+    private func row(_ network: NetworkResource) -> some View {
+        NetworkRow(network: network)
+            .tag(network.id)
+            .draggable(network.name)
+            .copyable([network.name])
+    }
+
+    /// Networks bucketed by the stack that created them — from the stack label where
+    /// there is one, falling back to the `<stack>-net` name for networks made before
+    /// that label was written.
+    private var groups: [(name: String, items: [NetworkResource])] {
+        let byNetworkName = Dictionary(
+            stacksStore.stacks.map { ($0.networkName, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let bucketed = Dictionary(grouping: networks) { network in
+            network.labels[StackLabels.stack] ?? byNetworkName[network.name] ?? ListGroups.ungrouped
+        }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.name < $1.name }) })
+    }
+
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(networks, id: \.id) { network in
-                NetworkRow(network: network)
-                    .tag(network.id)
-                    .draggable(network.name)
-                    .copyable([network.name])
+            let groups = groups
+            if groups.count == 1, groups[0].name == ListGroups.ungrouped {
+                ForEach(groups[0].items, id: \.id) { row($0) }
+            } else {
+                ForEach(groups, id: \.name) { group in
+                    let expanded = ListGroups.expansion(of: group.name, collapsed: $collapsedGroups)
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(group.items, id: \.id) { row($0) }
+                        }
+                    } header: {
+                        GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                            .contextMenu { groupMenu(group) }
+                    }
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in
@@ -46,7 +79,7 @@ struct NetworksListView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showCreateSheet = true
                 } label: {
@@ -85,6 +118,21 @@ struct NetworksListView: View {
 
     private var deleteBinding: Binding<Bool> {
         Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
+    }
+
+    /// Acts on the whole group. Without this the List's selection menu applies to a
+    /// header right-click and treats the group's name as an item id.
+    @ViewBuilder
+    private func groupMenu(_ group: (name: String, items: [NetworkResource])) -> some View {
+        let ids = Set(group.items.map(\.id))
+        let deletable = Set(group.items.filter { !$0.isBuiltin }.map(\.id))
+        Button("Select All") { selection = ids }
+        Button("Copy Names") { Pasteboard.copy(group.items.map(\.name).sorted()) }
+        Divider()
+        Button("Delete \(deletable.count) Network\(deletable.count == 1 ? "" : "s")…", role: .destructive) {
+            deleteCandidates = deletable
+        }
+        .disabled(deletable.isEmpty)
     }
 
     @ViewBuilder

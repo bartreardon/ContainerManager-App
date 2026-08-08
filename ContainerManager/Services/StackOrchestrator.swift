@@ -32,7 +32,7 @@ enum StackOrchestrator {
         }
 
         await onStep("Creating network “\(spec.networkName)”…")
-        try await ensureNetwork(named: spec.networkName)
+        try await ensureNetwork(named: spec.networkName, for: spec.name)
         await ensureVolumes(for: spec)
 
         // Only dependencies are worth waiting for; see referencedRoles.
@@ -156,11 +156,15 @@ enum StackOrchestrator {
         }
     }
 
-    nonisolated static func ensureNetwork(named name: String) async throws {
+    /// Creates the stack's network, labelled with the stack it belongs to so the
+    /// association is recorded rather than inferred from the `<stack>-net` name.
+    nonisolated static func ensureNetwork(named name: String, for stack: String? = nil) async throws {
         let client = NetworkClient()
         let existing = try await client.list()
         guard !existing.contains(where: { $0.name == name }) else { return }
-        let config = try NetworkConfiguration(name: name, mode: .nat, plugin: "container-network-vmnet")
+        let labels = try stack.map { try ResourceLabels([StackLabels.stack: $0]) } ?? ResourceLabels()
+        let config = try NetworkConfiguration(
+            name: name, mode: .nat, labels: labels, plugin: "container-network-vmnet")
         _ = try await client.create(configuration: config)
     }
 

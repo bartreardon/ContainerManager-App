@@ -52,10 +52,8 @@ private struct MachineDetailContent: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                startStopButton
-            }
-            ToolbarItem(placement: .principal) {
+            machineActions
+            ToolbarItem(placement: .primaryAction) {
                 Picker("View", selection: $mode) {
                     ForEach(MachineDetailMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -64,7 +62,6 @@ private struct MachineDetailContent: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
-            machineActions
         }
         .onChange(of: mode) {
             if mode == .terminal {
@@ -205,6 +202,7 @@ private struct MachineDetailContent: View {
     @ToolbarContentBuilder
     private var machineActions: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            startStopButton
             Button {
                 Task { await openShell() }
             } label: {
@@ -222,13 +220,17 @@ private struct MachineDetailContent: View {
                     Task { await store.setDefault(id: machine.id) }
                 }
                 .disabled(store.defaultId == machine.id)
-                Divider()
-                Button("Delete…", role: .destructive) {
-                    showDeleteConfirmation = true
-                }
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
             }
+            // Direct, as in every other section — the ⋯ menu keeps only the genuinely
+            // secondary actions.
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .help("Delete this machine")
         }
     }
 

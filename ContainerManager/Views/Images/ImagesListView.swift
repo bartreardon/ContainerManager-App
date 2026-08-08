@@ -3,8 +3,12 @@
 //  ContainerManager
 //
 
+import AppKit
 import ContainerAPIClient
+import ContainerResource
+import MachineAPIClient
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A request to open the Build sheet, optionally prefilled with a Dockerfile
 /// (from the toolbar/empty-state buttons, or a dropped/imported file).
@@ -16,6 +20,8 @@ private struct BuildRequest: Identifiable {
 struct ImagesListView: View {
     @Binding var selection: Set<String>
     @Environment(ImagesStore.self) private var store
+    @Environment(ContainersStore.self) private var containersStore
+    @Environment(MachinesStore.self) private var machinesStore
     @Environment(ImageImportModel.self) private var imageImport
     @Environment(WindowRouter.self) private var router
     @State private var showPullSheet = false
@@ -23,26 +29,86 @@ struct ImagesListView: View {
     @State private var dropTargeted = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
+    @State private var archiveStatus: String?
+    @SceneStorage("imageCollapsedGroups") private var collapsedGroups = ""
 
     private var images: [ClientImage] {
         guard !searchText.isEmpty else { return store.images }
         return store.images.filter { $0.reference.localizedCaseInsensitiveContains(searchText) }
     }
 
+    @ViewBuilder
+    private func row(_ image: ClientImage) -> some View {
+        ImageRow(
+            image: image, size: store.sizes[image.digest],
+            isUnused: !usedReferences.contains(image.reference)
+        )
+        .tag(image.reference)
+        .draggable(image.reference)
+        .copyable([image.reference])
+    }
+
+    /// What refers to each image reference: the stack a container belongs to, or the
+    /// containers/machines bucket for standalone ones.
+    private var owners: [String: Set<String>] {
+        var owners: [String: Set<String>] = [:]
+        for container in containersStore.containers {
+            let owner = container.configuration.labels[StackLabels.stack] ?? "Containers"
+            owners[container.configuration.image.reference, default: []].insert(owner)
+        }
+        for machine in machinesStore.machines {
+            owners[machine.configuration.image.reference, default: []].insert("Machines")
+        }
+        return owners
+    }
+
+    /// Images bucketed by what uses them. An image used by more than one thing goes to
+    /// a single "Shared" group rather than being listed twice — a row has to stay
+    /// uniquely identifiable for selection to work.
+    private var groups: [(name: String, items: [ClientImage])] {
+        let owners = owners
+        let bucketed = Dictionary(grouping: images) { image -> String in
+            let users = owners[image.reference] ?? []
+            switch users.count {
+            case 0: return ListGroups.unused
+            case 1: return users.first ?? ListGroups.unused
+            default: return ListGroups.shared
+            }
+        }
+        return ListGroups.sorted(
+            bucketed.map { (name: $0.key, items: $0.value.sorted { $0.reference < $1.reference }) })
+    }
+
     var body: some View {
         @Bindable var store = store
         List(selection: $selection) {
-            ForEach(images, id: \.reference) { image in
-                ImageRow(image: image, size: store.sizes[image.digest])
-                    .tag(image.reference)
-                    .draggable(image.reference)
-                    .copyable([image.reference])
+            let groups = groups
+            if groups.count == 1 {
+                ForEach(groups[0].items, id: \.reference) { row($0) }
+            } else {
+                ForEach(groups, id: \.name) { group in
+                    let expanded = ListGroups.expansion(of: group.name, collapsed: $collapsedGroups)
+                    Section {
+                        if expanded.wrappedValue {
+                            ForEach(group.items, id: \.reference) { row($0) }
+                        }
+                    } header: {
+                        GroupHeader(name: group.name, count: group.items.count, isExpanded: expanded)
+                            .contextMenu { groupMenu(group) }
+                    }
+                }
             }
         }
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter images")
+        .overlay(alignment: .bottom) {
+            if let archiveStatus {
+                BusyBanner(text: archiveStatus)
+            }
+        }
+        .animation(.default, value: archiveStatus)
         .overlay {
             if store.images.isEmpty {
                 ContentUnavailableView {
@@ -69,7 +135,7 @@ struct ImagesListView: View {
             return true
         } isTargeted: { dropTargeted = $0 }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     buildRequest = BuildRequest()
                 } label: {
@@ -77,7 +143,7 @@ struct ImagesListView: View {
                 }
                 .help("Build an image from a Dockerfile")
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showPullSheet = true
                 } label: {
@@ -116,6 +182,10 @@ struct ImagesListView: View {
         .task {
             while !Task.isCancelled {
                 await store.refresh()
+                // Those two stores are refreshed by their own lists, which aren't on
+                // screen here — without this the "Unused" badges would go stale.
+                await containersStore.refresh()
+                await machinesStore.refresh()
                 try? await Task.sleep(for: AppDefaults.listRefresh)
             }
         }
@@ -125,15 +195,101 @@ struct ImagesListView: View {
         Binding(get: { !deleteCandidates.isEmpty }, set: { if !$0 { deleteCandidates = [] } })
     }
 
+    /// Acts on the whole group. Without this the List's selection menu applies to a
+    /// header right-click and treats the group's name as an item reference — which read
+    /// as "Delete the image “Unused”".
+    @ViewBuilder
+    private func groupMenu(_ group: (name: String, items: [ClientImage])) -> some View {
+        let references = group.items.map(\.reference).sorted()
+        Button("Select All") { selection = Set(references) }
+        Button("Copy References") { Pasteboard.copy(references) }
+        Button("Save \(references.count) Image\(references.count == 1 ? "" : "s") as Archive…") {
+            saveArchive(references)
+        }
+        .disabled(archiveStatus != nil)
+        Divider()
+        Button("Delete \(references.count) Image\(references.count == 1 ? "" : "s")…", role: .destructive) {
+            deleteCandidates = Set(references)
+        }
+    }
+
     @ViewBuilder
     private func rowMenu(_ ids: Set<String>) -> some View {
         if ids.isEmpty {
             Button(SidebarSection.images.newItemLabel) { buildRequest = BuildRequest() }
+            Button("Load from Archive…") { loadArchive() }
+                .disabled(archiveStatus != nil)
+            Divider()
+            Button("Delete Unused Images…", role: .destructive) {
+                deleteCandidates = Set(unusedReferences)
+            }
+            .disabled(unusedReferences.isEmpty)
         } else {
             Button(ids.count > 1 ? "Copy References" : "Copy Reference") { Pasteboard.copy(ids.sorted()) }
+            Button(ids.count > 1 ? "Save \(ids.count) Images as Archive…" : "Save as Archive…") {
+                saveArchive(Array(ids).sorted())
+            }
+            .disabled(archiveStatus != nil)
             Divider()
             Button("Delete…", role: .destructive) { deleteCandidates = ids }
         }
+    }
+
+    /// Writes the selected images to an OCI archive — layers and configuration, so it
+    /// can be loaded back here or on another Mac.
+    private func saveArchive(_ references: [String]) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue =
+            references.count == 1
+            ? "\(references[0].shortImageReference.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")).tar"
+            : "images.tar"
+        panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
+        panel.message = "Save \(references.count) image\(references.count == 1 ? "" : "s") as an OCI archive"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        archiveStatus = "Saving \(references.count) image\(references.count == 1 ? "" : "s")…"
+        Task {
+            do {
+                try await ImageArchiver.save(references: references, to: url)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch {
+                store.lastError = PresentedError(title: "Couldn’t save archive", error: error)
+            }
+            archiveStatus = nil
+        }
+    }
+
+    private func loadArchive() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType("public.tar-archive")].compactMap { $0 }
+        panel.message = "Choose an OCI image archive to load"
+        panel.prompt = "Load"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        archiveStatus = "Loading images from \(url.lastPathComponent)…"
+        Task {
+            do {
+                try await ImageArchiver.load(from: url)
+                await store.refresh()
+            } catch {
+                store.lastError = PresentedError(title: "Couldn’t load archive", error: error)
+            }
+            archiveStatus = nil
+        }
+    }
+
+    /// Image references in use by a container (running or not) or a machine. Anything
+    /// else is safe to remove; the store has already filtered out the runtime's own
+    /// builder and init images, so nothing here is a system image.
+    private var usedReferences: Set<String> {
+        var used = Set(containersStore.containers.map { $0.configuration.image.reference })
+        used.formUnion(machinesStore.machines.map { $0.configuration.image.reference })
+        return used
+    }
+
+    private var unusedReferences: [String] {
+        images.map(\.reference).filter { !usedReferences.contains($0) }
     }
 
     /// Picks up a Dockerfile dropped on the sidebar's Images entry.
@@ -155,6 +311,8 @@ struct ImagesListView: View {
 struct ImageRow: View {
     let image: ClientImage
     let size: Int64?
+    /// Not referenced by any container or machine, so removing it frees real space.
+    var isUnused = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -162,9 +320,18 @@ struct ImageRow: View {
                 Text(image.reference.shortImageReference)
                     .fontWeight(.medium)
                     .lineLimit(1)
-                Text(image.digest.shortDigest)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Text(image.digest.shortDigest)
+                        .font(.caption.monospaced())
+                    if isUnused {
+                        Text("Unused")
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+                .foregroundStyle(.secondary)
             }
             Spacer()
             if let size {
