@@ -26,6 +26,8 @@ struct StackServiceSheet: View {
     @State private var portsText: String
     @State private var volumesText: String
     @State private var platform: String
+    @State private var cpusText: String
+    @State private var memory: String
     @State private var webURL: String
     @State private var progress = GuiProgress()
     @State private var isRunning = false
@@ -45,6 +47,8 @@ struct StackServiceSheet: View {
         _portsText = State(initialValue: (config?.publishedPorts ?? []).map(ContainerServiceSpec.portSpec).joined(separator: "\n"))
         _volumesText = State(initialValue: (config?.mounts ?? []).compactMap(ContainerServiceSpec.mountSpec).joined(separator: "\n"))
         _platform = State(initialValue: config.map { "\($0.platform.os)/\($0.platform.architecture)" } ?? "")
+        _cpusText = State(initialValue: config.map { String($0.resources.cpus) } ?? "")
+        _memory = State(initialValue: config.map { ContainerServiceSpec.memorySpec($0.resources) } ?? "")
         _webURL = State(initialValue: config?.labels[StackLabels.url] ?? "")
     }
 
@@ -58,6 +62,8 @@ struct StackServiceSheet: View {
         image = service.image
         command = service.command
         platform = service.platform ?? ""
+        cpusText = service.cpus.map(String.init) ?? ""
+        memory = service.memory ?? ""
         envText = service.env.joined(separator: "\n")
         portsText = service.publishPorts.joined(separator: "\n")
         volumesText = service.volumes.joined(separator: "\n")
@@ -81,6 +87,8 @@ struct StackServiceSheet: View {
                     ImageReferencePicker(label: "Image", reference: $image, prompt: "e.g. nginx:latest")
                     TextField("Command", text: $command, prompt: Text("Image default"))
                     TextField("Platform", text: $platform, prompt: Text("Host default — e.g. linux/amd64"))
+                    TextField("CPUs", text: $cpusText, prompt: Text("Default"))
+                    TextField("Memory", text: $memory, prompt: Text("Default — e.g. 4g"))
                 } header: {
                     HStack {
                         Text(replacing == nil ? "New Service" : "Replace “\(role)”")
@@ -178,7 +186,10 @@ struct StackServiceSheet: View {
             publishPorts: lines(portsText),
             command: command.trimmingCharacters(in: .whitespaces),
             platform: platform.trimmingCharacters(in: .whitespaces).isEmpty
-                ? nil : platform.trimmingCharacters(in: .whitespaces)
+                ? nil : platform.trimmingCharacters(in: .whitespaces),
+            cpus: Int64(cpusText.trimmingCharacters(in: .whitespaces)),
+            memory: memory.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil : memory.trimmingCharacters(in: .whitespaces)
         )
         do {
             try await store.addService(

@@ -34,6 +34,12 @@ services can address each other by name rather than by IP. Resolving a name does
 a route, though: reaching what you resolved still needs a shared network. A container only
 gets a name once it's re-created.
 
+**Stack services can set CPU and memory.** Previously every service in a stack got the
+runtime's default, with no way to raise it — enough to stop a real compose file working,
+since a service given too little memory doesn't fail, it stops answering. Stack
+definitions now carry `cpus` and `memory`, the Add Service and Replace sheets have fields
+for them, and a compose import reads `mem_limit`, `cpus` and `deploy.resources.limits`.
+
 **Restart the services from Settings.** Previously a stop followed by a start, done by
 hand, which is what an update leaves you needing.
 

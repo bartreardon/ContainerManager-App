@@ -38,6 +38,16 @@ enum ContainerServiceSpec {
         return ShellWords.join(argv)
     }
 
+    /// The container's memory as the create sheets spell it (`4g`, `512m`), so a
+    /// replacement inherits what it had rather than silently dropping to the default.
+    static func memorySpec(_ resources: ContainerConfiguration.Resources) -> String {
+        let bytes = resources.memoryInBytes
+        let gib = UInt64(1024 * 1024 * 1024)
+        let mib = UInt64(1024 * 1024)
+        if bytes >= gib, bytes % gib == 0 { return "\(bytes / gib)g" }
+        return "\(max(1, bytes / mib))m"
+    }
+
     static func portSpec(_ port: PublishPort) -> String {
         let host = "\(port.hostAddress)"
         let mapping = "\(port.hostPort):\(port.containerPort)"
