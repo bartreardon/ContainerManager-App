@@ -27,8 +27,12 @@ setting and restarts the services for you.
 
 It also recognises a half-finished setup — a domain created by following Apple's
 tutorial without the configuration step that registers names — and offers to complete
-it. Note this is host-to-container only: services in a stack still reach each other by
-address, and a container only gets a name once it's re-created.
+it.
+
+Containers get the names too, not just this Mac, so with a domain configured a stack's
+services can address each other by name rather than by IP. Resolving a name doesn't grant
+a route, though: reaching what you resolved still needs a shared network. A container only
+gets a name once it's re-created.
 
 **Restart the services from Settings.** Previously a stop followed by a start, done by
 hand, which is what an update leaves you needing.

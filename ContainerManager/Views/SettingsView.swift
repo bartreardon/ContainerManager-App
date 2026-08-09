@@ -209,7 +209,7 @@ struct SettingsView: View {
         let base =
             "Makes containers reachable from this Mac by name, so a web UI is at my-app.\(dns.defaultDomain ?? dnsDomainField) rather than an address that changes. Setting it up asks for your administrator password, because macOS needs a resolver entry."
         let caveats =
-            " Containers on the same stack still reach each other by address; only this Mac gains the names. Both a restart and re-creating a container are needed before it gets one."
+            " Containers get the names too, so a stack's services can address each other by name instead of by IP. Both a restart and re-creating a container are needed before it gets one."
         return base + caveats
     }
 

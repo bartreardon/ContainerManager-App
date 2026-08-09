@@ -18,9 +18,12 @@ import Foundation
 ///    the service give each new container an FQDN to register under. No privileges,
 ///    but the service only reads the file at startup.
 ///
-/// This is host-to-container only. A container's own resolver is its network gateway,
-/// which doesn't answer for container names, so services in a stack still reach each
-/// other by address — see `StackOrchestrator`'s `${IP:…}` substitution.
+/// Containers benefit too, not just this Mac: their resolver is the network gateway,
+/// which answers for container names once a default domain gives the service something
+/// to register them under. Without a domain configured — the default — nothing resolves,
+/// which is why stacks are wired with `StackOrchestrator`'s `${IP:…}` substitution rather
+/// than by name. Resolution is global; reaching what you resolved still needs a shared
+/// network.
 enum ContainerDNS {
     struct State: Equatable {
         /// Domains registered with macOS, from `container system dns list`.
