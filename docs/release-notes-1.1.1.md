@@ -43,5 +43,4 @@ the app stores itself.
 
 On macOS 27 beta, published ports accept a connection and then reset it, so
 `localhost:<port>` doesn't reach a container while its own address still works —
-[apple/container#2029](https://github.com/apple/container/issues/2029). This is
-upstream and not worked around here.
+apple/container issue #2029. This is upstream and not worked around here.
