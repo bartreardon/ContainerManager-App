@@ -3,6 +3,7 @@
 //  ContainerManager
 //
 
+import AppKit
 import ContainerAPIClient
 import ContainerResource
 import SwiftUI
@@ -136,6 +137,11 @@ private struct ContainerDetailContent: View {
         }
     }
 
+    private func open(hostPort: UInt16) {
+        guard let url = WebAddress.url(host: "localhost", port: hostPort) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private var infoForm: some View {
         Form {
             Section("Status") {
@@ -154,6 +160,33 @@ private struct ContainerDetailContent: View {
                 }
                 if let started = container.startedDate {
                     LabeledContent("Started", value: started.formatted(.relative(presentation: .named)))
+                }
+            }
+            if !container.configuration.publishedPorts.isEmpty {
+                Section {
+                    ForEach(container.configuration.publishedPorts, id: \.hostPort) { port in
+                        LabeledContent("\(port.containerPort)/\(port.proto)") {
+                            HStack(spacing: 8) {
+                                Text("localhost:\(port.hostPort)")
+                                    .textSelection(.enabled)
+                                Button {
+                                    open(hostPort: port.hostPort)
+                                } label: {
+                                    Image(systemName: "safari")
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Open \(WebAddress.scheme(forPort: port.hostPort))://localhost:\(port.hostPort) in your browser")
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Published Ports")
+                } footer: {
+                    // Without this you have to go to the CLI to find out what a
+                    // container is reachable on, which is most of the point of it.
+                    Text("Reachable from this Mac at these addresses, which don't change when the container restarts. The scheme is guessed from the port, so a service using TLS on an unusual port needs https typing in.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             Section("Image") {

@@ -31,12 +31,32 @@ struct Stack: Identifiable {
     }
 
     var webURL: URL? {
-        webService?.configuration.labels[StackLabels.url].flatMap(URL.init)
+        if let labelled = webService?.configuration.labels[StackLabels.url].flatMap(URL.init) {
+            return labelled
+        }
+        // Nothing said where the site is, so work it out from a published port. Without
+        // this a stack whose containers were made outside the app — or added with the
+        // Stack picker — has no address anywhere in the interface, even though the
+        // port is right there in its configuration.
+        guard let service = webService, let port = service.configuration.publishedPorts.first
+        else { return nil }
+        let scheme = WebAddress.scheme(forPort: port.containerPort)
+
+        // Prefer the name the runtime registered for this container when a DNS domain
+        // is configured: it says what it is, and it reaches the container's own port
+        // rather than depending on the host mapping. `localhost` otherwise.
+        if let host = service.networks.first?.hostname, host.contains(".") {
+            let name = host.hasSuffix(".") ? String(host.dropLast()) : host
+            return URL(string: "\(scheme)://\(name):\(port.containerPort)")
+        }
+        return URL(string: "\(scheme)://localhost:\(port.hostPort)")
     }
 
-    /// The service that serves the web URL — the label lives on that container.
+    /// The service that serves the web URL: the one carrying the label, or failing
+    /// that the first that publishes a port.
     var webService: ContainerSnapshot? {
         services.first { $0.configuration.labels[StackLabels.url] != nil }
+            ?? services.first { !$0.configuration.publishedPorts.isEmpty }
     }
 
     /// Whether the web URL is actually being served.

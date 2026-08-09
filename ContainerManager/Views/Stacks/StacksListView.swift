@@ -11,6 +11,7 @@ struct StacksListView: View {
     @Binding var selection: Set<String>
     @Environment(StacksStore.self) private var store
     @Environment(WindowRouter.self) private var router
+    @Environment(NetworksStore.self) private var networksStore
     @State private var presentedSheet: StackCreateKind?
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
@@ -83,7 +84,13 @@ struct StacksListView: View {
         .onCreateRequest(for: .stacks) { presentedSheet = .custom }
         .onAppear(perform: consumeImport)
         .onChange(of: router.pendingStackImport) { consumeImport() }
-        .autoRefresh { await store.refresh() }
+        .autoRefresh {
+            await store.refresh()
+            // A stack's detail shows its network, and that store is otherwise only
+            // refreshed by the Networks list — so it read "Not created yet" for a
+            // network that existed.
+            await networksStore.refresh()
+        }
     }
 
     @ViewBuilder
