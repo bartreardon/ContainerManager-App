@@ -11,18 +11,29 @@ ContainerManager is a SwiftUI front-end that links `container`'s own Swift clien
 
 ## Features
 
-- **Stacks** — stand up a multi-container setup in one step. Pick a ready-made template (e.g. **WordPress + MariaDB**) or build a **custom stack** (a web service plus an optional database). ContainerManager creates a private network, persistent volumes, and the containers, and wires the web tier to the database automatically — no DNS or terminal needed. Whole-stack start/stop/delete and an "Open in Browser" shortcut. See the [Stacks guide](docs/stacks.md) for details.
-- **Machines** — create persistent Linux VMs from an OCI image, start/stop, set default, edit boot config (CPUs, memory, home-mount), view logs, and open a shell. Each machine has an **integrated terminal** (a Terminal tab in its detail view) for an interactive session without leaving the app, plus an "Open in Terminal" option for Terminal.app. Surfaces boot diagnostics when an image lacks an init system. New to machines? See [what a container machine is and when to use it](docs/container-machine.md).
+- **Stacks** — stand up a multi-container setup in one step. Pick a ready-made template (e.g. **WordPress + MariaDB**) or build a **custom stack** (a web service plus an optional database). ContainerManager creates a private network, persistent volumes, and the containers, and wires the web tier to the database automatically — no DNS or terminal needed. Whole-stack start/stop/delete and an "Open in Browser" shortcut. See the [Stacks guide](https://github.com/bartreardon/ContainerManager-App/wiki/Stacks) for details.
+- **Machines** — create persistent Linux VMs from an OCI image, start/stop, set default, edit boot config (CPUs, memory, home-mount), view logs, and open a shell. Each machine has an **integrated terminal** (a Terminal tab in its detail view) for an interactive session without leaving the app, plus an "Open in Terminal" option for Terminal.app. Surfaces boot diagnostics when an image lacks an init system. New to machines? See [what a container machine is and when to use it](https://github.com/bartreardon/ContainerManager-App/wiki/Machines).
 - **Containers** — create and run containers (image, command, env, CPUs/memory, network, published ports, volume/bind mounts), start/stop/kill/delete, and view logs.
-- **Images** — list local images, pull from a registry with progress, **build from a Dockerfile**, and delete. Each image can be turned straight into a container or machine from its detail view. See the [building images guide](docs/building-images.md).
+- **Images** — list local images, pull from a registry with progress, **build from a Dockerfile**, and delete. Each image can be turned straight into a container or machine from its detail view. See the [building images guide](https://github.com/bartreardon/ContainerManager-App/wiki/Images-and-Builds).
 - **Networks** — create (NAT or host-only, optional CIDR), inspect subnet/gateway, and delete. The built-in `default` network is protected.
 - **Volumes** — create named volumes for persistent storage, inspect host path/size, and delete (guarded while in use).
 - **System** — see whether the `container` services are running, with the daemon version, and start/stop them from the status footer.
+
+## Documentation
+
+Full guides live in the **[wiki](https://github.com/bartreardon/ContainerManager-App/wiki)**:
+
+- **[Quick start](https://github.com/bartreardon/ContainerManager-App/wiki/Quick-Start)** — install to a running web app in about five minutes
+- **[Examples](https://github.com/bartreardon/ContainerManager-App/wiki/Examples)** — WordPress, Gitea with a CI runner, a static site, a compose import
+- **[Stacks](https://github.com/bartreardon/ContainerManager-App/wiki/Stacks)** · **[Stack definitions](https://github.com/bartreardon/ContainerManager-App/wiki/Stack-Definitions)** · **[Importing docker-compose](https://github.com/bartreardon/ContainerManager-App/wiki/Docker-Compose-Import)**
+- **[Machines](https://github.com/bartreardon/ContainerManager-App/wiki/Machines)** · **[Images and builds](https://github.com/bartreardon/ContainerManager-App/wiki/Images-and-Builds)** · **[Networking and DNS](https://github.com/bartreardon/ContainerManager-App/wiki/Networking-and-DNS)**
+- **[Settings and updates](https://github.com/bartreardon/ContainerManager-App/wiki/Settings-and-Updates)** · **[Troubleshooting](https://github.com/bartreardon/ContainerManager-App/wiki/Troubleshooting)**
 
 ## Requirements
 
 - A Mac with **Apple silicon**.
 - **macOS 26** (the `container` tool relies on its virtualization/networking features).
+- **`container` 1.2.0 or later** — the oldest version these client libraries are verified against. Older versions fail obscurely over XPC, so the app detects them and offers to update.
 - The **`container` tool installed** and its services started:
   ```bash
   container system start
@@ -34,7 +45,7 @@ ContainerManager is a SwiftUI front-end that links `container`'s own Swift clien
 This is a standard Xcode project; no extra tooling required.
 
 1. Open `ContainerManager.xcodeproj` in Xcode 26 or later.
-2. The app depends on Apple's [`container`](https://github.com/apple/container) Swift package, pinned to an **exact released version** (currently `1.0.0`) as a remote package reference. Pin it to the same version as the `container` CLI you run, so the app and the installed services agree on the base image/kernel references. It also pulls [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (the integrated terminal) as a remote package. Both are fetched automatically — no separate checkout or path setup is required. The first build resolves the full dependency graph (Containerization, NIO, SwiftTerm, etc.) and may take a few minutes.
+2. The app depends on Apple's [`container`](https://github.com/apple/container) Swift package, pinned to an **exact released version** (currently `1.2.1`) as a remote package reference. Pin it to the same version as the `container` CLI you run, so the app and the installed services agree on the base image/kernel references. It also pulls [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (the integrated terminal) as a remote package. Both are fetched automatically — no separate checkout or path setup is required. The first build resolves the full dependency graph (Containerization, NIO, SwiftTerm, etc.) and may take a few minutes.
 3. Build and run the **ContainerManager** scheme.
 
 > [!NOTE]
@@ -55,7 +66,7 @@ This is a standard Xcode project; no extra tooling required.
 **Yes.** Containers and machines run as background services managed by `launchd` and the `container` daemon, independent of this app. Quitting ContainerManager leaves everything running.
 
 - The **Stop** button in the status footer runs `container system stop`, which stops the entire `container` stack (all containers and the daemon). Quitting the app does **not** do that.
-- After a **reboot**, the daemon relaunches automatically but containers come back **stopped** — `container` (as of 1.0) has no restart policy, so there is no automatic restart of individual containers.
+- After a **reboot**, the daemon relaunches automatically but containers come back **stopped** — `container` has no restart policy, so there is no automatic restart of individual containers.
 
 ## A note on machine images
 
@@ -63,4 +74,4 @@ A container machine boots the image's init system at `/sbin/init`. Minimal image
 
 ## Status
 
-Built against `apple/container` 1.0.0. The `container` project is pre-1.0-style in its API stability between minor releases, so expect to track upstream changes.
+Built against `apple/container` 1.2.1, with 1.2.0 the minimum supported. The `container` project still changes its API between minor releases, so expect to track upstream.
