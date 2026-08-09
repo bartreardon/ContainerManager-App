@@ -8,8 +8,11 @@ import SwiftUI
 struct VolumeCreateSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(VolumesStore.self) private var store
+    @Environment(StacksStore.self) private var stacksStore
 
     @State private var name = ""
+    /// Stack to group under, or empty for none.
+    @State private var stack = ""
     @State private var isCreating = false
     @State private var error: PresentedError?
 
@@ -18,12 +21,22 @@ struct VolumeCreateSheet: View {
             Form {
                 Section {
                     TextField("Name", text: $name, prompt: Text("e.g. pgdata"))
+                    Picker("Stack", selection: $stack) {
+                        Text("None").tag("")
+                        ForEach(stacksStore.stacks.map(\.name), id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
                 } header: {
                     Text("Volume")
                 } footer: {
-                    Text("A local volume stores data on the host and persists across container recreation.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        stack.isEmpty
+                            ? "A local volume stores data on the host and persists across container recreation. Group it under a stack now, or label it later by right-clicking it."
+                            : "Grouped with the “\(stack)” stack. Deleting that stack keeps the volume — remove it here if you want the data gone."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 if let error {
                     Section {
@@ -62,7 +75,8 @@ struct VolumeCreateSheet: View {
         isCreating = true
         error = nil
         do {
-            try await store.create(name: name.trimmingCharacters(in: .whitespaces))
+            try await store.create(
+                name: name.trimmingCharacters(in: .whitespaces), stack: stack)
             dismiss()
         } catch {
             self.error = PresentedError(title: "Failed to create volume", error: error)

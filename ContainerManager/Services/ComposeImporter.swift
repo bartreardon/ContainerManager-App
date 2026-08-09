@@ -39,8 +39,53 @@ enum ComposeImporter {
 
     static let supportedServiceKeys: Set<String> = [
         "image", "environment", "ports", "volumes", "depends_on", "command",
-        "platform",
+        "platform", "mem_limit", "cpus",
     ]
+
+    /// Memory from `mem_limit` (compose v2) or `deploy.resources.limits.memory` (v3),
+    /// in the spelling the runtime wants.
+    ///
+    /// Worth carrying over: the runtime's default is modest, and a service given less
+    /// than it needs stops answering rather than failing outright — which is a nasty
+    /// way to find out.
+    nonisolated static func memoryLimit(_ service: [String: Any]) -> String? {
+        if let direct = service["mem_limit"] {
+            return normalizedMemory("\(direct)")
+        }
+        guard
+            let deploy = service["deploy"] as? [String: Any],
+            let resources = deploy["resources"] as? [String: Any],
+            let limits = resources["limits"] as? [String: Any],
+            let memory = limits["memory"]
+        else { return nil }
+        return normalizedMemory("\(memory)")
+    }
+
+    /// Compose writes `2g`, `512m` or a byte count; the runtime wants a unit suffix.
+    nonisolated static func normalizedMemory(_ raw: String) -> String? {
+        let value = raw.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !value.isEmpty else { return nil }
+        if let bytes = Int64(value) {
+            // A bare number is bytes in compose, which the runtime would read as MB.
+            return "\(max(1, bytes / (1024 * 1024)))m"
+        }
+        // 2gb → 2g, 512mb → 512m; anything else is passed through for the runtime to judge.
+        if value.hasSuffix("b"), value.count > 1 { return String(value.dropLast()) }
+        return value
+    }
+
+    nonisolated static func cpuLimit(_ service: [String: Any]) -> Int64? {
+        if let direct = service["cpus"], let value = Double("\(direct)"), value > 0 {
+            return Int64(value.rounded())
+        }
+        guard
+            let deploy = service["deploy"] as? [String: Any],
+            let resources = deploy["resources"] as? [String: Any],
+            let limits = resources["limits"] as? [String: Any],
+            let cpus = limits["cpus"], let value = Double("\(cpus)"), value > 0
+        else { return nil }
+        return Int64(value.rounded())
+    }
 
     static func document(at url: URL) throws -> StackTemplateDocument {
         guard
@@ -104,7 +149,9 @@ enum ComposeImporter {
                     volumes: volumes.isEmpty ? nil : volumes,
                     publishPorts: ports.isEmpty ? nil : ports,
                     command: command.isEmpty ? nil : command,
-                    platform: normalizedPlatform(service["platform"])
+                    platform: normalizedPlatform(service["platform"]),
+                    cpus: cpuLimit(service),
+                    memory: memoryLimit(service)
                 ))
         }
 
@@ -243,8 +290,10 @@ enum ComposeImporter {
     /// summary is actionable rather than a list of things that were silently dropped.
     private static func reason(forKey key: String) -> String {
         switch key {
-        case "restart", "deploy":
+        case "restart":
             "restart policies aren't supported; start the stack again if a service stops"
+        case "deploy":
+            "only resources.limits is read, for CPU and memory; replicas, restart policies and placement aren't supported"
         case "healthcheck":
             "health probes aren't run; dependants wait for the port to accept connections instead"
         case "cap_add", "cap_drop", "privileged", "security_opt":

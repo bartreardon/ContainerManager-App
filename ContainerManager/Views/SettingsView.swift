@@ -14,6 +14,10 @@ struct SettingsView: View {
     @AppStorage(AppDefaults.updateCheckFrequencyKey) private var updateFrequency = UpdateCheckFrequency.weekly.rawValue
     @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
     @Environment(SystemStore.self) private var systemStore
+    @State private var dns = ContainerDNS.State()
+    @State private var dnsDomainField = "test"
+    @State private var dnsBusy = false
+    @State private var dnsError: PresentedError?
 
     var body: some View {
         Form {
@@ -37,6 +41,35 @@ struct SettingsView: View {
                 Text("Container Tool")
             } footer: {
                 Text("Automatic checks the standard install, Homebrew (/opt/homebrew/bin), then the path reported by the running services. Set a path only to override.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Status", value: systemStore.status.label)
+                HStack {
+                    Button("Restart") {
+                        Task { await systemStore.restart() }
+                    }
+                    .disabled(!(systemStore.isReady || systemStore.status == .baseEnvMissing))
+                    if systemStore.status == .starting || systemStore.status == .stopping {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            } header: {
+                Text("Services")
+            } footer: {
+                Text("Restarting stops every running container and machine, then starts the services again. Needed after changing something the services only read at startup, such as the DNS domain below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                dnsRows
+            } header: {
+                Text("Local DNS")
+            } footer: {
+                Text(dnsExplanation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -99,6 +132,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .task { await refreshDNS() }
         .frame(width: 460, height: 520)
     }
 
@@ -127,6 +161,99 @@ struct SettingsView: View {
         guard date.timeIntervalSince1970 > 0 else { return "Not checked yet" }
         let formatter = RelativeDateTimeFormatter()
         return "Checked \(formatter.localizedString(for: date, relativeTo: Date()))"
+    }
+
+    /// Reflects which of the two halves are in place, since being half set up is the
+    /// easy state to land in and the confusing one to be in.
+    @ViewBuilder
+    private var dnsRows: some View {
+        if dns.isActive, let domain = dns.defaultDomain {
+            LabeledContent("Domain", value: domain)
+            LabeledContent("Containers reachable as", value: "<name>.\(domain)")
+            Button("Turn Off") { Task { await turnOffDNS() } }
+                .disabled(dnsBusy)
+        } else {
+            HStack {
+                TextField("Domain", text: $dnsDomainField, prompt: Text("test"))
+                if dnsBusy {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Set Up…") { Task { await setUpDNS() } }
+                        .disabled(!ContainerDNS.isValidDomain(dnsDomainField))
+                }
+            }
+            if dns.isIncomplete {
+                Label(incompleteDescription, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+            }
+        }
+        if let dnsError {
+            Text(dnsError.message)
+                .foregroundStyle(.red)
+                .font(.caption)
+        }
+    }
+
+    private var incompleteDescription: String {
+        if dns.defaultDomain == nil, let created = dns.resolverDomains.first {
+            return "“\(created)” exists but nothing registers under it yet — set it up to finish."
+        }
+        if let domain = dns.defaultDomain {
+            return "“\(domain)” is set but macOS isn't routing to it — set it up to finish."
+        }
+        return ""
+    }
+
+    private var dnsExplanation: String {
+        let base =
+            "Makes containers reachable from this Mac by name, so a web UI is at my-app.\(dns.defaultDomain ?? dnsDomainField) rather than an address that changes. Setting it up asks for your administrator password, because macOS needs a resolver entry."
+        let caveats =
+            " Containers get the names too, so a stack's services can address each other by name instead of by IP. Both a restart and re-creating a container are needed before it gets one."
+        return base + caveats
+    }
+
+    private func setUpDNS() async {
+        dnsBusy = true
+        dnsError = nil
+        do {
+            let domain = dnsDomainField.trimmingCharacters(in: .whitespaces)
+            if !dns.resolverDomains.contains(domain) {
+                try await ContainerDNS.createResolverDomain(domain)
+            }
+            try ContainerDNS.setDefaultDomain(domain)
+            await refreshDNS()
+            // The service reads its config once, so the setting does nothing until then.
+            if dns.defaultDomain != nil {
+                await systemStore.restart()
+                await refreshDNS()
+            }
+        } catch {
+            dnsError = PresentedError(title: "Couldn't set up DNS", error: error)
+        }
+        dnsBusy = false
+    }
+
+    private func turnOffDNS() async {
+        dnsBusy = true
+        dnsError = nil
+        do {
+            // Only the config half is undone. The resolver entry is inert without it,
+            // and removing it would ask for the password again for no visible gain.
+            try ContainerDNS.setDefaultDomain(nil)
+            await systemStore.restart()
+            await refreshDNS()
+        } catch {
+            dnsError = PresentedError(title: "Couldn't turn off DNS", error: error)
+        }
+        dnsBusy = false
+    }
+
+    private func refreshDNS() async {
+        dns = await ContainerDNS.state()
+        if let domain = dns.defaultDomain ?? dns.resolverDomains.first {
+            dnsDomainField = domain
+        }
     }
 
     private func chooseBinary() {

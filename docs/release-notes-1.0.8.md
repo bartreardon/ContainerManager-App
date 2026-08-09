@@ -81,4 +81,4 @@ last service.
 Stack services reach each other by IP rather than hostname, and a service's
 environment is fixed when it's created — so recreating a dependency leaves its
 dependants pointing at the old address. See the
-[stack definitions guide](stack-definitions.md) for the full list.
+[stack definitions guide](https://github.com/bartreardon/ContainerManager-App/wiki/Stack-Definitions) for the full list.

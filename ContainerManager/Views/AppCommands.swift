@@ -84,14 +84,19 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .help) {
             Link("ContainerManager on GitHub", destination: URL(string: "https://github.com/bartreardon/ContainerManager-App")!)
             Divider()
-            Link("Container Machines Guide", destination: docURL("container-machine.md"))
-            Link("Stacks Guide", destination: docURL("stacks.md"))
-            Link("Building Images Guide", destination: docURL("building-images.md"))
+            Link("Quick Start", destination: wikiURL("Quick-Start"))
+            Link("Examples", destination: wikiURL("Examples"))
+            Divider()
+            Link("Stacks Guide", destination: wikiURL("Stacks"))
+            Link("Container Machines Guide", destination: wikiURL("Machines"))
+            Link("Building Images Guide", destination: wikiURL("Images-and-Builds"))
+            Divider()
+            Link("Troubleshooting", destination: wikiURL("Troubleshooting"))
         }
     }
 
-    private func docURL(_ file: String) -> URL {
-        URL(string: "https://github.com/bartreardon/ContainerManager-App/blob/main/docs/\(file)")!
+    private func wikiURL(_ page: String) -> URL {
+        URL(string: "https://github.com/bartreardon/ContainerManager-App/wiki/\(page)")!
     }
 
     /// Opens a new window as a tab of the current one (⌘T), keeping ⌘N = New Window.

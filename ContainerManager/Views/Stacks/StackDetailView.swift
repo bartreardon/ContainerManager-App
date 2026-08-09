@@ -148,6 +148,10 @@ private struct StackDetailContent: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    // The whole row is the target, not just the text drawn in it —
+                    // otherwise right-clicking the gap between the name and the address
+                    // hits nothing, which is not how the row looks.
+                    .contentShape(.rect)
                     .contextMenu {
                         // A stack service is a normal container, so `exec` works — and
                         // the shell sees the stack's volumes mounted.

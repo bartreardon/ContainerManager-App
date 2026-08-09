@@ -10,6 +10,7 @@ struct ContainerCreateSheet: View {
     @Environment(ContainersStore.self) private var store
     @Environment(NetworksStore.self) private var networksStore
     @Environment(VolumesStore.self) private var volumesStore
+    @Environment(StacksStore.self) private var stacksStore
 
     @State private var name = ""
     @State private var image = ""
@@ -24,6 +25,8 @@ struct ContainerCreateSheet: View {
     @State private var cpusText = ""
     @State private var memory = ""
     @State private var network = "default"
+    /// Stack to join, or empty for none.
+    @State private var stack = ""
     @State private var portsText = ""
     @State private var volumesText = ""
     @State private var autoRemove = false
@@ -38,10 +41,32 @@ struct ContainerCreateSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section("Container") {
+                Section {
                     TextField("Name", text: $name, prompt: Text("Random ID"))
                     ImageReferencePicker(label: "Image", reference: $image, prompt: "e.g. nginx:latest")
                     TextField("Command", text: $command, prompt: Text("Image default"))
+                    Picker("Stack", selection: $stack) {
+                        Text("None").tag("")
+                        ForEach(stacksStore.stacks.map(\.name), id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                } header: {
+                    Text("Container")
+                } footer: {
+                    if !stack.isEmpty {
+                        Text("Joins the “\(stack)” stack and its network: it's grouped and started with the stack, and deleting the stack deletes it too. It isn't added to the stack's saved definition, so “Re-create” won't restore it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                // Joining a stack means joining its network. Done here, with the
+                // consequence spelled out above, because the Network row is further
+                // down the sheet and would otherwise appear to change on its own.
+                .onChange(of: stack) {
+                    guard !stack.isEmpty else { return }
+                    let stackNetwork = "\(stack)-net"
+                    if networkOptions.contains(stackNetwork) { network = stackNetwork }
                 }
                 Section {
                     TextEditor(text: $envText)
@@ -203,6 +228,15 @@ struct ContainerCreateSheet: View {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
+        // A stack is expressed as the same labels the orchestrator writes, so the
+        // container groups with it and the stack's own actions pick it up.
+        var labels: [String] = []
+        if !stack.isEmpty {
+            labels.append("\(StackLabels.stack)=\(stack)")
+            let role = name.trimmingCharacters(in: .whitespaces)
+            if !role.isEmpty { labels.append("\(StackLabels.role)=\(role)") }
+        }
+
         let spec = ContainerCreateSpec(
             name: name.trimmingCharacters(in: .whitespaces),
             image: image.trimmingCharacters(in: .whitespaces),
@@ -213,8 +247,10 @@ struct ContainerCreateSheet: View {
                 ? nil
                 : memory.trimmingCharacters(in: .whitespaces),
             network: network,
+
             publishPorts: ports,
             volumes: volumes,
+            labels: labels,
             autoRemove: autoRemove,
             startAfterCreate: startAfterCreate
         )

@@ -18,6 +18,13 @@ struct StackServiceSpec: Identifiable {
     var command: String = ""
     /// OCI platform (e.g. "linux/amd64") for images that don't ship the host's arch.
     var platform: String? = nil
+    /// CPU cores; nil uses the runtime's default.
+    var cpus: Int64? = nil
+    /// Memory, as the runtime spells it (e.g. "4g"); nil uses the default.
+    ///
+    /// Worth setting for anything that does real work: the default is modest, and a
+    /// service that quietly exceeds it stops answering rather than failing loudly.
+    var memory: String? = nil
 
     var id: String { key }
 }

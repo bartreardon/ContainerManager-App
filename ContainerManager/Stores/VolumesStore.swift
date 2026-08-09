@@ -38,8 +38,14 @@ final class VolumesStore {
         }
     }
 
-    func create(name: String) async throws {
-        _ = try await ClientVolume.create(name: name)
+    /// Creates a volume, optionally labelled with the stack it belongs to.
+    ///
+    /// The label has to be set here: the runtime accepts labels only at creation and
+    /// has no update call, which is why grouping an existing volume goes through
+    /// ``VolumeMetadata`` instead.
+    func create(name: String, stack: String = "") async throws {
+        let labels = stack.isEmpty ? [:] : [StackLabels.stack: stack]
+        _ = try await ClientVolume.create(name: name, labels: labels)
         await refresh()
     }
 

@@ -35,6 +35,10 @@ struct StackTemplateDocument: Codable {
         var command: String?
         /// OCI platform (e.g. "linux/amd64") for images without the host's architecture.
         var platform: String?
+        /// CPU cores; omit for the runtime's default.
+        var cpus: Int64?
+        /// Memory, e.g. "4g"; omit for the runtime's default.
+        var memory: String?
     }
 
     struct Web: Codable {
@@ -124,7 +128,9 @@ struct StackTemplateDocument: Codable {
                     volumes: service.volumes.isEmpty ? nil : service.volumes.map(literal),
                     publishPorts: service.publishPorts.isEmpty ? nil : service.publishPorts.map(literal),
                     command: service.command.isEmpty ? nil : literal(service.command),
-                    platform: service.platform)
+                    platform: service.platform,
+                    cpus: service.cpus,
+                    memory: service.memory)
             },
             web: web)
     }
@@ -228,7 +234,9 @@ struct StackTemplateDocument: Codable {
                 volumes: try (service.volumes ?? []).map { try substitute($0, values: values) },
                 publishPorts: try (service.publishPorts ?? []).map { try substitute($0, values: values) },
                 command: try substitute(service.command ?? "", values: values),
-                platform: service.platform
+                platform: service.platform,
+                cpus: service.cpus,
+                memory: service.memory
             )
         }
     }
