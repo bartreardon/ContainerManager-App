@@ -118,6 +118,19 @@ final class SystemStore {
         await refresh()
     }
 
+    /// Stops the services and starts them again.
+    ///
+    /// The update flow does this implicitly; this is the explicit version, for when
+    /// something only read at startup has changed — the service reads its config file
+    /// once, so a DNS domain set afterwards does nothing until it comes back up.
+    func restart() async {
+        guard status == .running || status == .baseEnvMissing else { return }
+        status = .stopping
+        _ = try? await CLIRunner.run(["system", "stop"])
+        health = nil
+        await performStart(stopFirst: false)
+    }
+
     /// Downloads and launches the official installer, then waits for the CLI to appear.
     func install() async {
         guard status == .notInstalled || isOutdated else { return }

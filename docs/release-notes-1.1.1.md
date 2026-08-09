@@ -19,6 +19,20 @@ with it, and **deleted with it**. A volume isn't — deleting a stack keeps its 
 as before. Neither is added to the stack's saved definition, so **Re-create** won't
 restore them.
 
+**Reach containers by name from this Mac.** Settings ▸ **Local DNS** sets up
+`container`'s local domain, so a container is reachable at `my-app.test` instead of an
+address that changes every time it restarts. Setting it up asks for your administrator
+password, because macOS needs a resolver entry; the app writes the matching service
+setting and restarts the services for you.
+
+It also recognises a half-finished setup — a domain created by following Apple's
+tutorial without the configuration step that registers names — and offers to complete
+it. Note this is host-to-container only: services in a stack still reach each other by
+address, and a container only gets a name once it's re-created.
+
+**Restart the services from Settings.** Previously a stop followed by a start, done by
+hand, which is what an update leaves you needing.
+
 ## Known limitations
 
 Something can only be assigned to a stack **as it's created**. The runtime accepts
