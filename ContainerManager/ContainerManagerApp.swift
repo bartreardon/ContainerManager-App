@@ -17,6 +17,7 @@ struct ContainerManagerApp: App {
     @State private var networksStore = NetworksStore()
     @State private var volumesStore = VolumesStore()
     @State private var stacksStore = StacksStore()
+    @State private var statsStore = StatsStore()
     @State private var imageImportModel = ImageImportModel()
 
     @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
@@ -32,6 +33,7 @@ struct ContainerManagerApp: App {
                 .environment(networksStore)
                 .environment(volumesStore)
                 .environment(stacksStore)
+                .environment(statsStore)
                 .environment(imageImportModel)
         }
         .commands {

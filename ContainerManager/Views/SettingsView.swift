@@ -11,6 +11,7 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage(CLIPathResolver.overrideKey) private var cliPath = ""
     @AppStorage(AppDefaults.listRefreshKey) private var refreshSeconds = 5
+    @AppStorage(AppDefaults.statsRefreshKey) private var statsSeconds = 2
     @AppStorage(AppDefaults.updateCheckFrequencyKey) private var updateFrequency = UpdateCheckFrequency.weekly.rawValue
     @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
     @Environment(SystemStore.self) private var systemStore
@@ -84,6 +85,21 @@ struct SettingsView: View {
             }
 
             Section {
+                Picker("Sample every", selection: $statsSeconds) {
+                    Text("1 second").tag(1)
+                    Text("2 seconds").tag(2)
+                    Text("5 seconds").tag(5)
+                    Text("Off").tag(0)
+                }
+            } header: {
+                Text("Statistics")
+            } footer: {
+                Text("CPU, memory and throughput on the Container and Stack panes. Each container costs one request per sample, and sampling only runs while a pane showing it is open — nothing is measured in the background.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
                     .onChange(of: showMenuBarIcon) { DockIcon.update() }
             } header: {
@@ -133,7 +149,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .task { await refreshDNS() }
-        .frame(width: 460, height: 520)
+        .frame(width: 460, height: 600)
     }
 
     /// A component row: name, installed version, and either an "available" action or an

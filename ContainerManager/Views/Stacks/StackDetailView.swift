@@ -40,7 +40,9 @@ private struct StackDetailContent: View {
     let stack: Stack
     @Environment(StacksStore.self) private var store
     @Environment(NetworksStore.self) private var networksStore
+    @Environment(StatsStore.self) private var statsStore
     @Environment(WindowRouter.self) private var router
+    @AppStorage(AppDefaults.statsRefreshKey) private var statsSeconds = 2
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
     @State private var serviceSheet: ServiceSheetKind?
@@ -68,6 +70,120 @@ private struct StackDetailContent: View {
     private func save() {
         StackMetadata.set(stack.name, displayName: displayName, icon: icon)
         Task { await store.refresh() }
+    }
+
+    private var runningServiceIds: Set<String> {
+        Set(stack.services.filter { $0.status == .running }.map(\.id))
+    }
+
+    /// Running services in the order the Services list shows them, so a line's colour
+    /// and the row it belongs to don't disagree.
+    private var graphedServices: [ContainerSnapshot] {
+        stack.services.filter { $0.status == .running }
+    }
+
+    private func serviceName(_ service: ContainerSnapshot) -> String {
+        service.configuration.labels[StackLabels.role] ?? service.id
+    }
+
+    /// The busiest moment any one service reached, which sets the shared scale.
+    private var cpuPeak: Double {
+        cpuSeries.flatMap(\.values).max() ?? 0
+    }
+
+    /// The most cores any single service has — the ceiling for one line, since the graph
+    /// plots services individually rather than summed.
+    private var stackCores: Int {
+        graphedServices.map(\.configuration.resources.cpus).max() ?? 1
+    }
+
+    /// One CPU line per running service.
+    private var cpuSeries: [UsageGraph.Series] {
+        lines { $0.values(\.cpuPercent) }
+    }
+
+    /// One memory line per running service, in bytes rather than as a fraction of each
+    /// service's own limit — on a stack the question is which service is eating the
+    /// memory, and only absolute values answer that.
+    private var memorySeries: [UsageGraph.Series] {
+        lines { $0.values(\.memoryUsedValue) }
+    }
+
+    /// The largest limit any running service has, so the axis is stable as services come
+    /// and go rather than rescaling to whatever is busiest this second.
+    private var memoryScale: UInt64 {
+        let limits = graphedServices.map { service in
+            statsStore.series(for: service.id)?.latest?.memoryLimit
+                ?? service.configuration.resources.memoryInBytes
+        }
+        return limits.max() ?? 1
+    }
+
+    private func lines(_ values: (StatsSeries) -> [Double]) -> [UsageGraph.Series] {
+        graphedServices.enumerated().compactMap { index, service in
+            guard let series = statsStore.series(for: service.id) else { return nil }
+            let points = values(series)
+            guard !points.isEmpty else { return nil }
+            return UsageGraph.Series(
+                id: service.id, values: points, tint: UsageGraph.tint(at: index))
+        }
+    }
+
+    private var legendEntries: [(name: String, tint: Color)] {
+        graphedServices.enumerated().map { index, service in
+            (serviceName(service), UsageGraph.tint(at: index))
+        }
+    }
+
+    private func memoryLabel(_ totals: StatsTotals) -> String {
+        let used = totals.memoryUsed.map(Format.bytes) ?? "—"
+        guard let limit = totals.memoryLimit else { return used }
+        return "\(used) / \(Format.bytes(limit))"
+    }
+
+    /// What the stack as a whole is using, added up from whichever of its services have
+    /// produced a reading so far.
+    @ViewBuilder
+    private var stackUsageRows: some View {
+        let readings = runningServiceIds.compactMap { statsStore.series(for: $0)?.latest }
+        let totals = StatsTotals(readings)
+        if statsSeconds <= 0 {
+            SamplingOffNotice()
+        } else if readings.isEmpty {
+            MeasuringNotice()
+        } else {
+            // One scale across every line in a graph, or the services couldn't be
+            // compared with each other — which is the only reason to draw them together.
+            let cpuScale = StatsMath.cpuScale(peak: cpuPeak, cores: stackCores)
+            UsageGraphRow(
+                title: "CPU",
+                value: Format.percent(totals.cpuPercent),
+                series: cpuSeries,
+                scale: cpuScale,
+                scaleLabel: Format.percent(cpuScale)
+            )
+            UsageGraphRow(
+                title: "Memory",
+                value: memoryLabel(totals),
+                series: memorySeries,
+                scale: Double(memoryScale),
+                scaleLabel: Format.bytes(memoryScale)
+            )
+            UsageLegend(entries: legendEntries)
+            LabeledContent("Network") {
+                RatePair(inbound: totals.networkRxRate, outbound: totals.networkTxRate)
+            }
+            LabeledContent("Disk") {
+                RatePair(inbound: totals.blockReadRate, outbound: totals.blockWriteRate)
+            }
+            // Says so rather than quietly under-reporting while services warm up, since
+            // a total that's missing a service looks like a total that's simply low.
+            if readings.count < runningServiceIds.count {
+                Text("\(readings.count) of \(runningServiceIds.count) running services measured so far.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func openInTerminalApp(_ id: String) {
@@ -129,6 +245,20 @@ private struct StackDetailContent: View {
                     .disabled(!stack.webIsRunning)
                 }
             }
+            if stack.anyRunning {
+                Section {
+                    stackUsageRows
+                } header: {
+                    Text("Usage")
+                } footer: {
+                    // The figures and the lines measure different things — the total can
+                    // sit above an axis scaled for one service — so say which is which
+                    // rather than leave the two numbers looking like they disagree.
+                    Text("Figures are totals across the stack's running services; each line is one service, against a per-service scale. 100% CPU is one fully-used core.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Section {
                 ForEach(stack.services, id: \.id) { service in
                     HStack(spacing: 8) {
@@ -146,6 +276,9 @@ private struct StackDetailContent: View {
                             Text("\(attachment.ipv4Address)".withoutCIDRSuffix)
                                 .font(.caption.monospaced())
                                 .foregroundStyle(.secondary)
+                        }
+                        if service.status == .running && statsSeconds > 0 {
+                            CompactUsage(reading: statsStore.series(for: service.id)?.latest)
                         }
                     }
                     // The whole row is the target, not just the text drawn in it —
@@ -248,6 +381,12 @@ private struct StackDetailContent: View {
             }
         }
         .formStyle(.grouped)
+        // One claim for the whole pane, covering the total and every service row. The
+        // id restarts it as services come and go, so a newly started service starts
+        // being sampled without waiting for the pane to be reopened.
+        .task(id: runningServiceIds) {
+            await statsStore.observe(runningServiceIds)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Both stay put and enable/disable, rather than one swapping into the

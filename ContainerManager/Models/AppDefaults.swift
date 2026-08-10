@@ -38,6 +38,7 @@ enum AppDefaults {
     // Every key in one place, so a view and the code reading it behind its back can't
     // drift apart. `containerBinaryPath` belongs to CLIPathResolver, which reads it.
     static let listRefreshKey = "listRefreshSeconds"
+    static let statsRefreshKey = "statsRefreshSeconds"
     static let showMenuBarIconKey = "showMenuBarIcon"
     static let updateCheckFrequencyKey = "updateCheckFrequency"
     static let lastUpdateCheckKey = "lastUpdateCheck"
@@ -46,6 +47,19 @@ enum AppDefaults {
     static var listRefresh: Duration {
         let seconds = UserDefaults.standard.integer(forKey: listRefreshKey)
         return .seconds(Double(seconds == 0 ? 5 : seconds))
+    }
+
+    /// Resource-sampling interval, or nil when sampling is switched off.
+    ///
+    /// Read live on every tick like `listRefresh`, so changing it in Settings takes
+    /// effect on the next one. Unlike `listRefresh` this can't lean on `integer(forKey:)`
+    /// returning 0 for "unset": 0 is the stored value for Off, and the two have to mean
+    /// different things.
+    static var statsRefresh: Duration? {
+        guard let seconds = UserDefaults.standard.object(forKey: statsRefreshKey) as? Int else {
+            return .seconds(2)
+        }
+        return seconds > 0 ? .seconds(Double(seconds)) : nil
     }
 
     /// Whether the menu bar item is shown. Defaults to true when unset.
