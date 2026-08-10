@@ -31,6 +31,7 @@ struct MachineDetailView: View {
 private struct MachineDetailContent: View {
     let machine: MachineSnapshot
     @Environment(MachinesStore.self) private var store
+    @Environment(StatsStore.self) private var statsStore
     @Environment(WindowRouter.self) private var router
     @State private var mode: MachineDetailMode = .info
     @State private var terminalSessionId = UUID()
@@ -162,6 +163,20 @@ private struct MachineDetailContent: View {
                 }
                 LabeledContent("Initialized", value: machine.initialized ? "Yes" : "No")
             }
+            if machine.status == .running, let containerId = machine.containerId {
+                Section {
+                    UsageRows(containerId: containerId, cores: machine.bootConfig.cpus)
+                } header: {
+                    Text("Usage")
+                } footer: {
+                    // These come from the host's view of the VM, not from the guest's own
+                    // /proc — the two disagree, and this is the one that answers "what is
+                    // this machine costing my Mac".
+                    Text("What the virtual machine is using on this Mac, including everything running inside it. The guest's own tools will report different figures.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Section("Image") {
                 LabeledContent("Reference", value: machine.configuration.image.reference.shortImageReference)
                 LabeledContent("Platform", value: "\(machine.platform.os)/\(machine.platform.architecture)")
@@ -173,6 +188,17 @@ private struct MachineDetailContent: View {
             BootConfigSection(machine: machine)
         }
         .formStyle(.grouped)
+        // A machine is a container underneath, so it's sampled by its backing container
+        // id — the machine's own name isn't one the stats route knows.
+        .task(id: sampledContainerId) {
+            guard let sampledContainerId else { return }
+            await statsStore.observe([sampledContainerId])
+        }
+    }
+
+    /// The container to sample for this machine, while it's running.
+    private var sampledContainerId: String? {
+        machine.status == .running ? machine.containerId : nil
     }
 
     /// Start/Stop lives on the leading edge of the toolbar, well away from the

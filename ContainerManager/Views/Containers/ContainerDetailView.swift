@@ -33,7 +33,6 @@ private struct ContainerDetailContent: View {
     @Environment(ContainersStore.self) private var store
     @Environment(StatsStore.self) private var statsStore
     @Environment(WindowRouter.self) private var router
-    @AppStorage(AppDefaults.statsRefreshKey) private var statsSeconds = 2
     @State private var mode: ContainerDetailMode = .info
     @State private var terminalSessionId = UUID()
     @State private var terminalExited = false
@@ -166,7 +165,11 @@ private struct ContainerDetailContent: View {
             }
             if container.status == .running {
                 Section("Usage") {
-                    usageRows
+                    UsageRows(
+                        containerId: container.id,
+                        cores: container.configuration.resources.cpus,
+                        configuredMemory: container.configuration.resources.memoryInBytes
+                    )
                 }
             }
             if !container.configuration.publishedPorts.isEmpty {
@@ -215,69 +218,6 @@ private struct ContainerDetailContent: View {
             guard container.status == .running else { return }
             await statsStore.observe([container.id])
         }
-    }
-
-    /// CPU, memory, throughput and process count, sampled while this pane is open.
-    ///
-    /// Every value is optional all the way down — the runtime reports whatever the
-    /// guest's cgroups gave it — so each row falls back to "—" on its own rather than
-    /// the whole section disappearing because one counter is missing.
-    @ViewBuilder
-    private var usageRows: some View {
-        let series = statsStore.series(for: container.id)
-        // Read through `@AppStorage` rather than `AppDefaults` so switching sampling on
-        // in Settings redraws this pane; the sampling loop reads `AppDefaults` live.
-        if statsSeconds <= 0 {
-            SamplingOffNotice()
-        } else if let series, let latest = series.latest {
-            let cpu = series.values(\.cpuPercent)
-            let cpuScale = StatsMath.cpuScale(peak: cpu.max() ?? 0, cores: cpuCount)
-            UsageGraphRow(
-                title: "CPU",
-                value: Format.percent(latest.cpuPercent),
-                series: [.init(id: "cpu", values: cpu, tint: .accentColor)],
-                scale: cpuScale,
-                scaleLabel: Format.percent(cpuScale),
-                caption: "\(cpuCount) cores — 100% is one fully-used core"
-            )
-            let memoryScale = Double(memoryLimit(latest))
-            UsageGraphRow(
-                title: "Memory",
-                value: memoryLabel(latest),
-                series: [
-                    .init(id: "memory", values: series.values(\.memoryUsedValue), tint: .accentColor)
-                ],
-                scale: memoryScale,
-                scaleLabel: Format.bytes(memoryLimit(latest))
-            )
-            LabeledContent("Network") {
-                RatePair(inbound: latest.networkRxRate, outbound: latest.networkTxRate)
-            }
-            LabeledContent("Disk") {
-                RatePair(inbound: latest.blockReadRate, outbound: latest.blockWriteRate)
-            }
-            LabeledContent("Processes", value: Format.count(latest.processes))
-            if statsStore.isNotResponding(container.id) {
-                NotRespondingNotice()
-            }
-        } else if statsStore.isNotResponding(container.id) {
-            NotRespondingNotice()
-        } else {
-            MeasuringNotice()
-        }
-    }
-
-    private var cpuCount: Int { container.configuration.resources.cpus }
-
-    /// The stats route can omit the limit; the container's own configuration always has
-    /// it, and a graph needs a ceiling either way.
-    private func memoryLimit(_ reading: StatsReading) -> UInt64 {
-        reading.memoryLimit ?? container.configuration.resources.memoryInBytes
-    }
-
-    private func memoryLabel(_ reading: StatsReading) -> String {
-        let used = reading.memoryUsed.map(Format.bytes) ?? "—"
-        return "\(used) / \(Format.bytes(memoryLimit(reading)))"
     }
 
     /// Start/Stop lives on the leading edge of the toolbar, matching the machine

@@ -109,6 +109,86 @@ struct UsageGraphRow: View {
     }
 }
 
+/// The Usage rows for one container: CPU and memory graphs, then throughput and process
+/// count as figures.
+///
+/// Shared because a machine is a container underneath — `MachineSnapshot.containerId` is
+/// the id the stats route answers for — so the machine pane shows exactly these rows
+/// against exactly this data rather than a second copy that drifts.
+struct UsageRows: View {
+    /// The container to read; for a machine, its backing container id.
+    let containerId: String
+    let cores: Int
+    /// Used when the runtime doesn't report a memory limit, which it's entitled not to.
+    var configuredMemory: UInt64? = nil
+
+    @Environment(StatsStore.self) private var statsStore
+    @AppStorage(AppDefaults.statsRefreshKey) private var statsSeconds = 2
+
+    var body: some View {
+        // Read through `@AppStorage` rather than `AppDefaults` so switching sampling on
+        // in Settings redraws the pane; the sampling loop reads `AppDefaults` live.
+        if statsSeconds <= 0 {
+            SamplingOffNotice()
+        } else if let series = statsStore.series(for: containerId), let latest = series.latest {
+            rows(series, latest)
+        } else if statsStore.isNotResponding(containerId) {
+            NotRespondingNotice()
+        } else {
+            MeasuringNotice()
+        }
+    }
+
+    /// Every value is optional all the way down — the runtime reports whatever the guest's
+    /// cgroups gave it — so each row falls back to "—" on its own rather than the whole
+    /// section disappearing because one counter is missing.
+    @ViewBuilder
+    private func rows(_ series: StatsSeries, _ latest: StatsReading) -> some View {
+        let cpu = series.values(\.cpuPercent)
+        let cpuScale = StatsMath.cpuScale(peak: cpu.max() ?? 0, cores: cores)
+        UsageGraphRow(
+            title: "CPU",
+            value: Format.percent(latest.cpuPercent),
+            series: [.init(id: "cpu", values: cpu, tint: .accentColor)],
+            scale: cpuScale,
+            scaleLabel: Format.percent(cpuScale),
+            caption: "\(cores) cores — 100% is one fully-used core"
+        )
+        let memory = series.values(\.memoryUsedValue)
+        let memoryScale = memoryScale(latest, peak: memory.max() ?? 0)
+        UsageGraphRow(
+            title: "Memory",
+            value: memoryLabel(latest),
+            series: [.init(id: "memory", values: memory, tint: .accentColor)],
+            scale: memoryScale,
+            scaleLabel: Format.bytes(UInt64(memoryScale))
+        )
+        LabeledContent("Network") {
+            RatePair(inbound: latest.networkRxRate, outbound: latest.networkTxRate)
+        }
+        LabeledContent("Disk") {
+            RatePair(inbound: latest.blockReadRate, outbound: latest.blockWriteRate)
+        }
+        LabeledContent("Processes", value: Format.count(latest.processes))
+        if statsStore.isNotResponding(containerId) {
+            NotRespondingNotice()
+        }
+    }
+
+    /// The limit if anything knows one, and the observed peak otherwise — a graph needs a
+    /// ceiling even when nobody will say what it is.
+    private func memoryScale(_ latest: StatsReading, peak: Double) -> Double {
+        if let limit = latest.memoryLimit ?? configuredMemory, limit > 0 { return Double(limit) }
+        return max(peak, 1)
+    }
+
+    private func memoryLabel(_ latest: StatsReading) -> String {
+        let used = latest.memoryUsed.map(Format.bytes) ?? "—"
+        guard let limit = latest.memoryLimit ?? configuredMemory else { return used }
+        return "\(used) / \(Format.bytes(limit))"
+    }
+}
+
 /// Which colour belongs to which service, under a stack's multi-line graph.
 struct UsageLegend: View {
     let entries: [(name: String, tint: Color)]
