@@ -31,6 +31,7 @@ struct ContainerDetailView: View {
 private struct ContainerDetailContent: View {
     let container: ContainerSnapshot
     @Environment(ContainersStore.self) private var store
+    @Environment(StatsStore.self) private var statsStore
     @Environment(WindowRouter.self) private var router
     @State private var mode: ContainerDetailMode = .info
     @State private var terminalSessionId = UUID()
@@ -162,6 +163,15 @@ private struct ContainerDetailContent: View {
                     LabeledContent("Started", value: started.formatted(.relative(presentation: .named)))
                 }
             }
+            if container.status == .running {
+                Section("Usage") {
+                    UsageRows(
+                        containerId: container.id,
+                        cores: container.configuration.resources.cpus,
+                        configuredMemory: container.configuration.resources.memoryInBytes
+                    )
+                }
+            }
             if !container.configuration.publishedPorts.isEmpty {
                 Section {
                     ForEach(container.configuration.publishedPorts, id: \.hostPort) { port in
@@ -202,6 +212,12 @@ private struct ContainerDetailContent: View {
             }
         }
         .formStyle(.grouped)
+        // Sampling runs only while this pane is showing a running container: switching
+        // to the Terminal tab or selecting something else cancels it.
+        .task(id: container.status) {
+            guard container.status == .running else { return }
+            await statsStore.observe([container.id])
+        }
     }
 
     /// Start/Stop lives on the leading edge of the toolbar, matching the machine
