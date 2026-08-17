@@ -1,0 +1,64 @@
+name: Update Homebrew cask
+
+# The DMG is built and uploaded by hand, so this runs on the publish event —
+# by which point the asset it needs already exists on the release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, e.g. v1.1.1"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    # A pre-release shouldn't become the version Homebrew hands to everyone.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Work out the tag and version
+        id: release
+        run: |
+          TAG="${{ inputs.tag || github.event.release.tag_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download the release asset and check it
+        id: asset
+        run: |
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.tag }}/ContainerManager.dmg"
+          # -f so a missing asset fails the job here, rather than publishing a
+          # checksum for something that isn't there.
+          curl -fsSL --retry 3 -o ContainerManager.dmg "$URL"
+          echo "sha256=$(sha256sum ContainerManager.dmg | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the tap
+        uses: actions/checkout@v4
+        with:
+          repository: bartreardon/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update the cask
+        working-directory: tap
+        run: |
+          CASK=Casks/containermanager.rb
+          # Anchored to the whole line so only version and sha256 can change —
+          # a loose pattern could rewrite the URL or the zap paths.
+          sed -i -E 's|^  version "[^"]*"$|  version "${{ steps.release.outputs.version }}"|' "$CASK"
+          sed -i -E 's|^  sha256 "[^"]*"$|  sha256 "${{ steps.asset.outputs.sha256 }}"|' "$CASK"
+
+          if git diff --quiet -- "$CASK"; then
+            echo "Cask is already at ${{ steps.release.outputs.version }} — nothing to do."
+            exit 0
+          fi
+
+          git diff -- "$CASK"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "containermanager ${{ steps.release.outputs.version }}" -- "$CASK"
+          git push
