@@ -14,6 +14,14 @@ struct SettingsView: View {
     @AppStorage(AppDefaults.statsRefreshKey) private var statsSeconds = 2
     @AppStorage(AppDefaults.updateCheckFrequencyKey) private var updateFrequency = UpdateCheckFrequency.weekly.rawValue
     @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
+    @AppStorage(AppDefaults.notificationsEnabledKey) private var notificationsEnabled = false
+    @AppStorage(AppDefaults.notifyStopsKey) private var notifyStops = true
+    @AppStorage(AppDefaults.notifyOperationsKey) private var notifyOperations = true
+    @AppStorage(AppDefaults.notifyThresholdsKey) private var notifyThresholds = true
+    @AppStorage(AppDefaults.watchIntervalKey) private var watchSeconds = 30
+    @AppStorage(AppDefaults.cpuThresholdKey) private var cpuThreshold = 0
+    @AppStorage(AppDefaults.freeDiskThresholdKey) private var freeDiskGB = 0
+    @State private var notificationsDenied = false
     @Environment(SystemStore.self) private var systemStore
     @State private var dns = ContainerDNS.State()
     @State private var dnsDomainField = "test"
@@ -71,6 +79,62 @@ struct SettingsView: View {
                 Text("Local DNS")
             } footer: {
                 Text(dnsExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Notify me about container activity", isOn: $notificationsEnabled)
+                    .onChange(of: notificationsEnabled) { _, enabled in
+                        guard enabled else { return }
+                        Task {
+                            // Ask only when someone turns it on. If they say no, put the
+                            // switch back rather than leaving the app configured to do
+                            // something the system won't let it do.
+                            if await Notifier.requestAuthorization() {
+                                notificationsDenied = false
+                            } else {
+                                notificationsEnabled = false
+                                notificationsDenied = true
+                            }
+                        }
+                    }
+                if notificationsDenied {
+                    Label(
+                        "macOS is blocking notifications for ContainerManager. Allow them in System Settings ▸ Notifications.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .foregroundStyle(.orange)
+                    .font(.caption)
+                }
+                if notificationsEnabled {
+                    Toggle("Something stopped unexpectedly", isOn: $notifyStops)
+                    Toggle("Long operations finished", isOn: $notifyOperations)
+                    Toggle("Resource limits reached", isOn: $notifyThresholds)
+                    if notifyThresholds {
+                        Picker("Warn at", selection: $cpuThreshold) {
+                            Text("Never").tag(0)
+                            Text("100% CPU (one core)").tag(100)
+                            Text("200% CPU").tag(200)
+                            Text("400% CPU").tag(400)
+                        }
+                        Picker("Warn when free disk is under", selection: $freeDiskGB) {
+                            Text("Never").tag(0)
+                            Text("5 GB").tag(5)
+                            Text("10 GB").tag(10)
+                            Text("25 GB").tag(25)
+                        }
+                    }
+                    Picker("Check every", selection: $watchSeconds) {
+                        Text("15 seconds").tag(15)
+                        Text("30 seconds").tag(30)
+                        Text("2 minutes").tag(120)
+                    }
+                }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text("Only changes you didn't make are reported — stopping something yourself won't notify you. Checking runs while ContainerManager is open, whether or not a window is showing; with this off, nothing is polled.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

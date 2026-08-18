@@ -301,6 +301,9 @@ struct BuildImageSheet: View {
             }
             builtTag = useTag
             built = true
+            OperationNotice.finished(
+                "Built \(useTag.shortImageReference)", detail: "The image is ready to use.",
+                succeeded: true, section: .images, item: useTag)
             await imagesStore.refresh()
             refreshSaved()
         } catch is CancellationError {
@@ -309,6 +312,9 @@ struct BuildImageSheet: View {
             session.log.append("— stopped —")
         } catch {
             self.error = PresentedError(title: "Build failed", error: error)
+            OperationNotice.finished(
+                "Build of \(useTag.shortImageReference)", detail: PresentedError.describe(error),
+                succeeded: false, section: .images)
         }
         session.isBuilding = false
     }

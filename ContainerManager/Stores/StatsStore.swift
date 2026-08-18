@@ -36,6 +36,10 @@ final class StatsStore {
     private var observers: [UUID: Set<String>] = [:]
     /// Everything still being sampled, least recently viewed first.
     private var retained: [String] = []
+    /// Containers the notification watcher wants sampled, which it needs whether or not
+    /// anything is on screen. Held separately from the view claims so they can't evict
+    /// each other, and so turning notifications off releases exactly these.
+    private var backgroundIds: Set<String> = []
     /// Containers with a request already outstanding. A wedged container never answers
     /// and never leaves this set, which is deliberate: it stops ticks piling up
     /// un-cancellable XPC calls behind it. See `isNotResponding(_:)`.
@@ -87,16 +91,39 @@ final class StatsStore {
         }
     }
 
+    /// Sets the containers sampled on the watcher's behalf, independent of any view.
+    ///
+    /// Passing an empty set releases the claim entirely — when notifications or their
+    /// thresholds are switched off, this must leave nothing running behind it.
+    func setBackgroundIds(_ ids: Set<String>) {
+        guard ids != backgroundIds else { return }
+        let dropped = backgroundIds.subtracting(ids)
+        backgroundIds = ids
+        guard !ids.isEmpty else {
+            // Only forget the ones no view is asking for; a pane on screen keeps its graph.
+            let onScreen = observers.values.reduce(into: Set<String>()) { $0.formUnion($1) }
+            for id in dropped where !onScreen.contains(id) {
+                retained.removeAll { $0 == id }
+                forget(id)
+            }
+            return
+        }
+        promote(ids)
+        startLoop()
+    }
+
     /// Moves `ids` to the most-recently-viewed end of the rotation and evicts the oldest
     /// beyond the limit.
     private func promote(_ ids: Set<String>) {
         retained.removeAll { ids.contains($0) }
         retained.append(contentsOf: ids.sorted())
 
-        let onScreen = observers.values.reduce(into: Set<String>()) { $0.formUnion($1) }
+        let claimed = observers.values
+            .reduce(into: backgroundIds) { $0.formUnion($1) }
         while retained.count > Self.retentionLimit {
-            // Never evict something a view is currently showing, however old its claim.
-            guard let index = retained.firstIndex(where: { !onScreen.contains($0) }) else { break }
+            // Never evict something a view is showing or the watcher is watching, however
+            // old the claim.
+            guard let index = retained.firstIndex(where: { !claimed.contains($0) }) else { break }
             forget(retained.remove(at: index))
         }
     }
@@ -130,8 +157,13 @@ final class StatsStore {
     /// Sampling is worth continuing while there's something to sample and a window to
     /// show it in. Menu-bar-only is the app's idle state — measuring through it would be
     /// a background tax nobody asked for.
+    ///
+    /// The exception is a background claim: someone has asked to be *notified* about
+    /// resource use, which is a request to keep measuring precisely when no window is
+    /// open. That's the one case where the tax is the point.
     private var isWanted: Bool {
-        !retained.isEmpty && AppWindows.hasOrdinaryVisible
+        if !backgroundIds.isEmpty { return true }
+        return !retained.isEmpty && AppWindows.hasOrdinaryVisible
     }
 
     private func stop() {

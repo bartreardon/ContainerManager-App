@@ -9,6 +9,7 @@ struct RootView: View {
     @Environment(SystemStore.self) private var systemStore
     @Environment(StacksStore.self) private var stacksStore
     @State private var router = WindowRouter()
+    private let notificationRoute = NotificationRoute.shared
     @SceneStorage("selectedSection") private var storedSection = SidebarSection.machines.rawValue
 
     private var windowTitle: String {
@@ -91,6 +92,14 @@ struct RootView: View {
         }
         .onChange(of: router.section) { storedSection = router.section.rawValue }
         .errorAlert($systemStore.lastError)
+        // A tapped notification lands on the app delegate, which has no window to route
+        // through — so it leaves the destination here for whichever window takes it.
+        .onChange(of: notificationRoute.pending) { _, destination in
+            guard let destination else { return }
+            notificationRoute.pending = nil
+            router.select(destination.section)
+            if let item = destination.item { router.select(id: item, in: destination.section) }
+        }
         .task { await systemStore.autoCheckForUpdatesIfDue() }
         // Slower once everything is up: this only watches for the subsystem going
         // away, while the visible list polls its own store.

@@ -7,18 +7,39 @@
 
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct ContainerManagerApp: App {
-    @State private var systemStore = SystemStore()
-    @State private var machinesStore = MachinesStore()
-    @State private var containersStore = ContainersStore()
+    @State private var systemStore: SystemStore
+    @State private var machinesStore: MachinesStore
+    @State private var containersStore: ContainersStore
     @State private var imagesStore = ImagesStore()
     @State private var networksStore = NetworksStore()
     @State private var volumesStore = VolumesStore()
-    @State private var stacksStore = StacksStore()
-    @State private var statsStore = StatsStore()
+    @State private var stacksStore: StacksStore
+    @State private var statsStore: StatsStore
     @State private var imageImportModel = ImageImportModel()
+    /// Held for the app's lifetime, not a scene's: it exists to notice things while no
+    /// window is open, so it can't be started from a view.
+    @State private var watcher: ActivityWatcher
+
+    init() {
+        let system = SystemStore()
+        let machines = MachinesStore()
+        let containers = ContainersStore()
+        let stacks = StacksStore()
+        let stats = StatsStore()
+        _systemStore = State(initialValue: system)
+        _machinesStore = State(initialValue: machines)
+        _containersStore = State(initialValue: containers)
+        _stacksStore = State(initialValue: stacks)
+        _statsStore = State(initialValue: stats)
+        _watcher = State(
+            initialValue: ActivityWatcher(
+                system: system, containers: containers, machines: machines, stacks: stacks,
+                stats: stats))
+    }
 
     @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -63,8 +84,11 @@ struct ContainerManagerApp: App {
 /// Keeps the Dock icon in sync with window presence: shown while an ordinary window
 /// is open, hidden (menu-bar only) once the last one closes. Runs from an app delegate
 /// because `NSApp` isn't available during `App.init`.
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Taps arrive here, which is why routing goes through the shared route rather
+        // than a window's own router — at this point there may be no window at all.
+        UNUserNotificationCenter.current().delegate = self
         let center = NotificationCenter.default
         for name: Notification.Name in [NSWindow.didBecomeKeyNotification, NSWindow.willCloseNotification] {
             center.addObserver(self, selector: #selector(windowsChanged), name: name, object: nil)
@@ -75,6 +99,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // On close the window is still counted synchronously, so re-evaluate next runloop.
     @objc private func windowsChanged() {
         DispatchQueue.main.async { DockIcon.update() }
+    }
+
+    /// A notification was tapped: come forward, and remember where to go.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
+    ) async {
+        let info = response.notification.request.content.userInfo
+        if let raw = info[Notifier.sectionKey] as? String,
+            let section = SidebarSection(rawValue: raw)
+        {
+            NotificationRoute.shared.pending = .init(
+                section: section, item: info[Notifier.itemKey] as? String)
+        }
+        // Same dance as the menu bar's "Open Container Manager": become a regular app
+        // first, or a window won't come forward from the accessory state.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        if !AppWindows.hasOrdinaryVisible {
+            NSApp.sendAction(#selector(NSApplication.newWindowForTab(_:)), to: nil, from: nil)
+        }
+    }
+
+    /// Show banners even when ContainerManager is frontmost. The watcher only reports
+    /// things you didn't do, so it's still news while the app is open.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 }
 
