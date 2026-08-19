@@ -52,6 +52,19 @@ final class WindowRouter {
         pendingCreate = section
     }
 
+    /// Switch to `section` and select `id` — what a tapped notification wants.
+    func select(id: String, in section: SidebarSection) {
+        self.section = section
+        switch section {
+        case .stacks: selectedStackNames = [id]
+        case .machines: selectedMachineIds = [id]
+        case .containers: selectedContainerIds = [id]
+        case .images: selectedImageReferences = [id]
+        case .networks: selectedNetworkIds = [id]
+        case .volumes: selectedVolumeNames = [id]
+        }
+    }
+
     /// Switch to `section`, select `id`, and ask its detail view to open the terminal.
     func openTerminal(id: String, in section: SidebarSection) {
         self.section = section

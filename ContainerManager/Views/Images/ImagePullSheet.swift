@@ -73,10 +73,11 @@ struct ImagePullSheet: View {
         isPulling = true
         error = nil
         do {
-            try await store.pull(
-                reference: reference.trimmingCharacters(in: .whitespaces),
-                progress: progress
-            )
+            let name = reference.trimmingCharacters(in: .whitespaces)
+            try await store.pull(reference: name, progress: progress)
+            OperationNotice.finished(
+                "Pulled \(name.shortImageReference)", detail: "The image is ready to use.",
+                succeeded: true, section: .images, item: name)
             dismiss()
         } catch is CancellationError {
             // Asked for — the sheet is already closing.

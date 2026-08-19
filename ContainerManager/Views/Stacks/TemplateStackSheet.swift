@@ -286,6 +286,18 @@ struct TemplateStackSheet: View {
         // Keep the run itself, so the steps and any failure can be examined later —
         // working out which manual steps remain is the whole point.
         StackLog.append(section: "Create", lines: log, to: spec.name)
+        switch outcome {
+        case .succeeded:
+            OperationNotice.finished(
+                "\(spec.name) is up", detail: "\(spec.services.count) services started.",
+                succeeded: true, section: .stacks, item: spec.name)
+        case .failed(let created, let total, let message):
+            OperationNotice.finished(
+                "\(spec.name) didn't finish", detail: "\(created) of \(total) services started. \(message)",
+                succeeded: false, section: .stacks, item: spec.name)
+        default:
+            break
+        }
         isRunning = false
     }
 }

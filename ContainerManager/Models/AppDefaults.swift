@@ -43,6 +43,16 @@ enum AppDefaults {
     static let updateCheckFrequencyKey = "updateCheckFrequency"
     static let lastUpdateCheckKey = "lastUpdateCheck"
 
+    // Notifications. Off by default: an app that starts talking before being asked is
+    // one people silence permanently.
+    static let notificationsEnabledKey = "notificationsEnabled"
+    static let notifyStopsKey = "notifyUnexpectedStops"
+    static let notifyOperationsKey = "notifyOperationsFinished"
+    static let notifyThresholdsKey = "notifyThresholds"
+    static let watchIntervalKey = "watchIntervalSeconds"
+    static let cpuThresholdKey = "cpuThresholdPercent"
+    static let freeDiskThresholdKey = "freeDiskThresholdGB"
+
     /// List auto-refresh interval. Defaults to 5s when unset.
     static var listRefresh: Duration {
         let seconds = UserDefaults.standard.integer(forKey: listRefreshKey)
@@ -76,6 +86,41 @@ enum AppDefaults {
     static var lastUpdateCheck: Date {
         get { Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: lastUpdateCheckKey)) }
         set { UserDefaults.standard.set(newValue.timeIntervalSince1970, forKey: lastUpdateCheckKey) }
+    }
+
+    /// Master switch. Every other notification setting is read only when this is on.
+    static var notificationsEnabled: Bool {
+        UserDefaults.standard.bool(forKey: notificationsEnabledKey)
+    }
+
+    /// The per-category switches, each defaulting to on once notifications are enabled —
+    /// turning the feature on and hearing nothing would read as broken.
+    static func notifyCategory(_ key: String) -> Bool {
+        guard notificationsEnabled else { return false }
+        return UserDefaults.standard.object(forKey: key) as? Bool ?? true
+    }
+
+    /// How often the watcher looks. Same shape as `statsRefresh`: 0 is a real value
+    /// meaning off, so `object(forKey:)` is needed to tell it from unset.
+    static var watchInterval: Duration {
+        guard let seconds = UserDefaults.standard.object(forKey: watchIntervalKey) as? Int else {
+            return .seconds(30)
+        }
+        return .seconds(Double(max(5, seconds)))
+    }
+
+    /// CPU percent that counts as excessive, where 100% is one core. Nil when off.
+    static var cpuThreshold: Double? {
+        guard notifyCategory(notifyThresholdsKey) else { return nil }
+        let percent = UserDefaults.standard.object(forKey: cpuThresholdKey) as? Int ?? 0
+        return percent > 0 ? Double(percent) : nil
+    }
+
+    /// Free space below which to warn, in bytes. Nil when off.
+    static var freeDiskThreshold: UInt64? {
+        guard notifyCategory(notifyThresholdsKey) else { return nil }
+        let gigabytes = UserDefaults.standard.object(forKey: freeDiskThresholdKey) as? Int ?? 0
+        return gigabytes > 0 ? UInt64(gigabytes) * 1_000_000_000 : nil
     }
 
     /// True when an automatic check is due per the configured frequency.
