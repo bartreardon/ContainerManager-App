@@ -161,6 +161,10 @@ private struct StackDetailContent: View {
                         .disabled(service.status != .running)
                         Button("Open in Terminal.app") { openInTerminalApp(service.id) }
                             .disabled(service.status != .running)
+                        Button("Reclaim Unused Space") {
+                            Task { await store.cleanService(id: service.id, in: stack.name) }
+                        }
+                        .disabled(service.status != .running)
                         Divider()
                         Button("Replace…") { serviceSheet = .replace(service) }
                         Button("Remove from Stack", role: .destructive) {

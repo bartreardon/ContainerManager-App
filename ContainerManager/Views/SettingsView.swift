@@ -4,6 +4,8 @@
 //
 
 import AppKit
+import ContainerAPIClient
+import ContainerResource
 import SwiftUI
 
 /// App preferences (⌘,). Keys are shared with the rest of the app via `@AppStorage`:
@@ -62,6 +64,18 @@ struct SettingsView: View {
                 Text("Restarting stops every running container and machine, then starts the services again. Needed after changing something the services only read at startup, such as the DNS domain below.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if let health = systemStore.health {
+                Section {
+                    ServiceDiagnostics(health: health)
+                } header: {
+                    Text("Diagnostics")
+                } footer: {
+                    Text("What `container system status` reports. Copy Diagnostics puts it on the clipboard for a bug report.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section {
@@ -266,5 +280,111 @@ struct SettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             cliPath = url.path
         }
+    }
+}
+
+/// What `container system status` reports, gathered in-process: the daemon's health
+/// ping plus counts from the stores, so they match the lists.
+private struct ServiceDiagnostics: View {
+    let health: SystemHealth
+    @Environment(ContainersStore.self) private var containersStore
+    @Environment(ImagesStore.self) private var imagesStore
+
+    private var serviceVersion: String {
+        ContainerVersion.parse(health.apiServerVersion).map { "\($0.0).\($0.1).\($0.2)" }
+            ?? health.apiServerVersion
+    }
+
+    private var versionsDiffer: Bool {
+        guard let service = ContainerVersion.parse(health.apiServerVersion),
+            let linked = ContainerVersion.parse(ContainerVersion.linkedLibrary)
+        else { return false }
+        return service != linked
+    }
+
+    /// "macOS 27.0 (26A428) · 10 CPUs", from "Version 27.0 (Build 26A428)".
+    private var host: String {
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+            .replacingOccurrences(of: "Version ", with: "macOS ")
+            .replacingOccurrences(of: "Build ", with: "")
+        return "\(os) · \(ProcessInfo.processInfo.processorCount) CPUs"
+    }
+
+    private var runningCount: Int {
+        containersStore.containers.filter { $0.status == .running }.count
+    }
+
+    private var paths: [(label: String, path: String)] {
+        var paths = [
+            ("App root", health.appRoot.path(percentEncoded: false)),
+            ("Install root", health.installRoot.path(percentEncoded: false)),
+        ]
+        if let logRoot = health.logRoot {
+            paths.append(("Log root", String(describing: logRoot)))
+        }
+        return paths
+    }
+
+    var body: some View {
+        LabeledContent("Services", value: "\(serviceVersion) (\(health.apiServerBuild))")
+        LabeledContent("Commit") {
+            Text(health.apiServerCommit)
+                .font(.caption.monospaced())
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
+        LabeledContent("Client libraries", value: ContainerVersion.linkedLibrary)
+        if versionsDiffer {
+            Label(
+                "The services and ContainerManager's client libraries differ. Update whichever is older so they match.",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(.orange)
+            .font(.caption)
+        }
+        LabeledContent("Host", value: host)
+        ForEach(paths, id: \.label) { entry in
+            // An HStack rather than LabeledContent, which moves a long value onto a line
+            // of its own instead of truncating it.
+            HStack(spacing: 4) {
+                Text(entry.label)
+                Spacer(minLength: 16)
+                Text((entry.path as NSString).abbreviatingWithTildeInPath)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(entry.path)
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: entry.path)])
+                } label: {
+                    Image(systemName: "arrow.forward.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .help("Show in Finder")
+            }
+        }
+        LabeledContent("Containers", value: "\(runningCount) running of \(containersStore.containers.count)")
+        LabeledContent("Images", value: "\(imagesStore.images.count)")
+        Button("Copy Diagnostics") { Pasteboard.copy(diagnostics) }
+            .task {
+                await containersStore.refresh()
+                await imagesStore.refresh()
+            }
+    }
+
+    private var diagnostics: [String] {
+        [
+            "ContainerManager: \(AppUpdateChecker.installedVersion)",
+            "Client libraries: \(ContainerVersion.linkedLibrary)",
+            "Services: \(serviceVersion) (\(health.apiServerBuild))",
+            "Services commit: \(health.apiServerCommit)",
+            "Host: \(host)",
+        ]
+            + paths.map { "\($0.label): \($0.path)" }
+            + [
+                "Containers: \(runningCount) running of \(containersStore.containers.count)",
+                "Images: \(imagesStore.images.count)",
+            ]
     }
 }

@@ -360,6 +360,14 @@ final class StacksStore {
         }
     }
 
+    /// Trims a running service's writable filesystems, including its named volumes,
+    /// so the host reclaims freed space.
+    func cleanService(id: String, in stackName: String) async {
+        await perform(name: stackName, title: "Failed to reclaim unused space") {
+            try await ContainerClient().clean(id: id)
+        }
+    }
+
     /// Stops and deletes all member containers and removes the stack network.
     /// Named volumes are intentionally left in place to preserve data.
     func delete(name: String) async {

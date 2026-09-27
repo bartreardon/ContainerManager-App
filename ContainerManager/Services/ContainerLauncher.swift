@@ -64,7 +64,7 @@ enum ContainerLauncher {
                 process: processFlags,
                 management: management,
                 resource: Flags.Resource(cpus: spec.cpus, memory: spec.memory),
-                registry: Flags.Registry(scheme: "auto"),
+                registry: Flags.Registry(scheme: "https"),
                 imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
                 containerSystemConfig: systemConfig,
                 progressUpdate: progress.handler,

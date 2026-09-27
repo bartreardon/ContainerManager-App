@@ -118,7 +118,7 @@ final class MachinesStore {
             id: id,
             image: spec.image,
             management: Flags.MachineManagement.parse([]),
-            registry: Flags.Registry(scheme: "auto"),
+            registry: Flags.Registry(scheme: "https"),
             imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
             containerSystemConfig: systemConfig,
             progressUpdate: progress.handler

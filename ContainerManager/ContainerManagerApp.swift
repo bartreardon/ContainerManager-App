@@ -41,6 +41,8 @@ struct ContainerManagerApp: App {
         Settings {
             SettingsView()
                 .environment(systemStore)
+                .environment(containersStore)
+                .environment(imagesStore)
         }
 
         MenuBarExtra(isInserted: $showMenuBarIcon) {
