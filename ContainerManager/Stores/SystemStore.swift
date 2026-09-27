@@ -33,10 +33,19 @@ final class SystemStore {
     private(set) var availableUpdate: String?
     /// Latest ContainerManager release when newer than the running app; nil otherwise.
     private(set) var availableAppUpdate: String?
-    private var appReleasePageURL: URL?
+
+    /// Whether the privileged helper is registered and allowed. Re-read on every refresh,
+    /// since the user approves it in System Settings, outside the app.
+    private(set) var helperStatus: PrivilegedHelper.Status = PrivilegedHelper.status
 
     private var cachedCLIVersion: String?
     private var didAutoCheckThisLaunch = false
+
+    /// container was installed from Apple's package, so it can be updated and removed
+    /// through the helper — unlike a Homebrew install, which has no receipt.
+    var isInstalledFromPackage: Bool {
+        FileManager.default.fileExists(atPath: "/var/db/receipts/\(UninstallPlan.packageIdentifier).plist")
+    }
 
     /// Installed container version for display, from live services or the last CLI probe.
     var installedContainerVersion: String? {
@@ -54,6 +63,7 @@ final class SystemStore {
     }
 
     func refresh() async {
+        helperStatus = PrivilegedHelper.status
         switch status {
         case .starting, .stopping, .installing: return
         default: break
@@ -145,24 +155,71 @@ final class SystemStore {
             let release = try await ContainerInstaller.latestRelease()
             busyMessage = "Downloading container \(release.version)…"
             let pkg = try await ContainerInstaller.download(release)
-            busyMessage = "Opening the installer — complete it in the Installer window."
-            ContainerInstaller.launchInstaller(pkg: pkg)
-
-            // Wait (bounded) for the user to finish in Installer.app.
-            cachedCLIVersion = nil
-            for _ in 0..<120 {
-                try? await Task.sleep(for: .seconds(3))
+            if PrivilegedHelper.status == .enabled {
+                busyMessage = "Installing container \(release.version)…"
+                defer { try? FileManager.default.removeItem(at: pkg) }
+                _ = try await PrivilegedHelper.installPackage(at: pkg)
                 cachedCLIVersion = nil
-                if CLIRunner.isInstalled, let v = await cliVersion(), ContainerVersion.meetsMinimum(v) {
-                    break
+            } else {
+                busyMessage = "Opening the installer — complete it in the Installer window."
+                ContainerInstaller.launchInstaller(pkg: pkg)
+
+                // Wait (bounded) for the user to finish in Installer.app.
+                cachedCLIVersion = nil
+                for _ in 0..<120 {
+                    try? await Task.sleep(for: .seconds(3))
+                    cachedCLIVersion = nil
+                    if CLIRunner.isInstalled, let v = await cliVersion(), ContainerVersion.meetsMinimum(v) {
+                        break
+                    }
                 }
             }
+        } catch is CancellationError {
+            // The user dismissed the administrator prompt.
         } catch {
             lastError = PresentedError(title: "Installation failed", error: error)
         }
         busyMessage = nil
         status = .unknown
         await refresh()
+    }
+
+    /// Removes container through the privileged helper. Services are stopped first —
+    /// the package can't be removed from under them — and the user's data is removed here,
+    /// as the user, only if asked.
+    func uninstall(deletingData: Bool) async {
+        guard helperStatus == .enabled, isInstalledFromPackage else { return }
+        status = .stopping
+        busyMessage = "Uninstalling container…"
+        _ = try? await CLIRunner.run(["system", "stop"])
+        health = nil
+        do {
+            try await PrivilegedHelper.uninstallContainer()
+            for domain in ContainerDNS.resolverDomainsOnDisk() {
+                try? await PrivilegedHelper.deleteResolver(domain: domain)
+            }
+            if deletingData {
+                try await Self.deleteContainerData()
+            }
+        } catch is CancellationError {
+        } catch {
+            lastError = PresentedError(title: "Couldn't uninstall container", error: error)
+        }
+        cachedCLIVersion = nil
+        busyMessage = nil
+        status = .unknown
+        await refresh()
+    }
+
+    /// Images, containers, volumes and machines, plus container's preferences.
+    private static func deleteContainerData() async throws {
+        let data = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "Library/Application Support/com.apple.container")
+        if FileManager.default.fileExists(atPath: data.path) {
+            try FileManager.default.removeItem(at: data)
+        }
+        _ = try? await CLIRunner.run(
+            executable: "/usr/bin/defaults", arguments: ["delete", "com.apple.container.defaults"])
     }
 
     // MARK: Updates
@@ -213,13 +270,11 @@ final class SystemStore {
     }
 
     private func checkAppUpdate() async -> UpdateOutcome {
-        let current = AppUpdateChecker.installedVersion
+        let current = AppUpdater.installedVersion
         do {
-            let release = try await AppUpdateChecker.latestRelease()
-            if ContainerVersion.isUpdate(latest: release.version, over: current) {
-                let version = displayVersion(release.version)
+            if let available = try await AppUpdater.shared.availableVersion() {
+                let version = displayVersion(available)
                 availableAppUpdate = version
-                appReleasePageURL = release.pageURL
                 return .available(version)
             }
             availableAppUpdate = nil
@@ -247,9 +302,9 @@ final class SystemStore {
             app: nil)
     }
 
-    /// Opens the ContainerManager release page for a manual download (no self-update).
-    func openAppReleasePage() {
-        NSWorkspace.shared.open(appReleasePageURL ?? AppUpdateChecker.releasesPage)
+    /// Hands over to Sparkle to download, install and relaunch.
+    func installAppUpdate() {
+        AppUpdater.shared.installUpdate()
     }
 
     /// Applies a container update by reinstalling the latest release. Stops services so the

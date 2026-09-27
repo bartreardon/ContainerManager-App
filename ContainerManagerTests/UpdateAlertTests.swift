@@ -26,14 +26,14 @@ struct UpdateAlertTests {
 
     @Test("An app update offers the download page")
     func appOnly() {
-        #expect(titles(container: nil, app: "1.2.0") == ["Get ContainerManager…", "Later"])
+        #expect(titles(container: nil, app: "1.2.0") == ["Update ContainerManager…", "Later"])
     }
 
     @Test("Both updates keep container first, then the app, then Later")
     func bothUpdates() {
         #expect(
             titles(container: "1.2.2", app: "1.2.0") == [
-                "Update container…", "Get ContainerManager…", "Later",
+                "Update container…", "Update ContainerManager…", "Later",
             ])
     }
 

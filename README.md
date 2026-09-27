@@ -60,6 +60,8 @@ This is a standard Xcode project; no extra tooling required.
   defaults write com.bartreardon.ContainerManager containerBinaryPath /path/to/container
   ```
 - Keep the linked client library and the installed `container` daemon on the **same version** — they exchange JSON-encoded payloads over XPC, so a version mismatch can cause decode errors.
+- **Privileged helper**: the `ContainerManagerHelper` target is a launchd daemon embedded in the app and registered with `SMAppService`. It installs and removes the `container` package and writes `/etc/resolver` entries. Its request types and pure logic live in `Shared/`, compiled into both targets; the logic is unit-tested through the app. Register it from a copy in `/Applications` when testing.
+- **Releases** use Sparkle for self-update; see [docs/releasing.md](docs/releasing.md) for signing keys, build numbers and the appcast.
 
 ## Lifecycle: does my stuff keep running when I quit?
 

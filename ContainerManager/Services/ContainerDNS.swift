@@ -121,20 +121,23 @@ enum ContainerDNS {
     /// A domain safe to interpolate into the shell command run with administrator
     /// rights below, and valid as a DNS name.
     nonisolated static func isValidDomain(_ domain: String) -> Bool {
-        guard !domain.isEmpty, domain.count <= 253 else { return false }
-        guard domain.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == ".") })
-        else { return false }
-        return !domain.hasPrefix("-") && !domain.hasPrefix(".") && !domain.hasSuffix("-")
-            && !domain.hasSuffix(".")
+        ResolverDomain.isValid(domain)
     }
 
-    /// Creates `/etc/resolver/<domain>` via `sudo container system dns create`.
+    /// Creates the `/etc/resolver` entry for `domain`.
     ///
-    /// Run through AppleScript's `with administrator privileges`, so macOS presents its
-    /// own authorization dialog and the password never passes through this app. The
-    /// domain is validated first because it is interpolated into that command.
+    /// Through the privileged helper when it's enabled. Otherwise via `sudo container
+    /// system dns create`, run through AppleScript's `with administrator privileges` so
+    /// macOS presents its own authorization dialog and the password never passes through
+    /// this app; the domain is validated first because it is interpolated into that command.
     static func createResolverDomain(_ domain: String) async throws {
         guard isValidDomain(domain) else { throw SetupError.invalidDomain(domain) }
+        if PrivilegedHelper.status == .enabled {
+            do {
+                try await PrivilegedHelper.createResolver(domain: domain)
+            } catch is CancellationError {}
+            return
+        }
         let command = "'\(CLIRunner.containerBinary)' system dns create \(domain)"
         let script = "do shell script \"\(command)\" with administrator privileges"
         let result = try await CLIRunner.run(
@@ -145,6 +148,24 @@ enum ContainerDNS {
             if result.output.contains("User canceled") { return }
             throw SetupError.commandFailed(result.output)
         }
+    }
+
+    /// Removes the `/etc/resolver` entry for `domain`. Only through the helper: without
+    /// it, leaving the inert entry behind beats asking for a password to tidy up.
+    static func deleteResolverDomain(_ domain: String) async throws {
+        guard PrivilegedHelper.status == .enabled else { return }
+        do {
+            try await PrivilegedHelper.deleteResolver(domain: domain)
+        } catch is CancellationError {}
+    }
+
+    /// Domains with a resolver entry from container, read straight from /etc/resolver so
+    /// it works after the CLI has gone.
+    nonisolated static func resolverDomainsOnDisk() -> [String] {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: ResolverDomain.directory)) ?? []
+        return files.filter { $0.hasPrefix(ResolverDomain.filePrefix) }
+            .map { String($0.dropFirst(ResolverDomain.filePrefix.count)) }
+            .filter(ResolverDomain.isValid)
     }
 
     /// Writes (or clears) the default domain in the user's config file.

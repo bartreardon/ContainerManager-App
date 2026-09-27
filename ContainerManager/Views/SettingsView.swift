@@ -20,6 +20,8 @@ struct SettingsView: View {
     @State private var dnsDomainField = "test"
     @State private var dnsBusy = false
     @State private var dnsError: PresentedError?
+    @State private var helperError: PresentedError?
+    @State private var showUninstallConfirmation = false
 
     var body: some View {
         Form {
@@ -38,11 +40,46 @@ struct SettingsView: View {
                     Button("Choose…") { chooseBinary() }
                     Button("Use Automatic") { cliPath = "" }
                         .disabled(cliPath.isEmpty)
+                    Spacer()
+                    if systemStore.helperStatus == .enabled, systemStore.isInstalledFromPackage {
+                        Button("Uninstall container…", role: .destructive) {
+                            showUninstallConfirmation = true
+                        }
+                    }
                 }
             } header: {
                 Text("Container Tool")
             } footer: {
                 Text("Automatic checks the standard install, Homebrew (/opt/homebrew/bin), then the path reported by the running services. Set a path only to override.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Status", value: systemStore.helperStatus.label)
+                switch systemStore.helperStatus {
+                case .notRegistered:
+                    Button("Enable Helper…") {
+                        Task { await changeHelper { try PrivilegedHelper.register() } }
+                    }
+                case .requiresApproval:
+                    Button("Open Login Items…") { PrivilegedHelper.openLoginItems() }
+                case .enabled:
+                    Button("Disable Helper") {
+                        Task { await changeHelper { try await PrivilegedHelper.unregister() } }
+                    }
+                case .unavailable:
+                    EmptyView()
+                }
+                if let helperError {
+                    Text(helperError.message)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            } header: {
+                Text("Privileged Helper")
+            } footer: {
+                Text("Lets Container Manager install, update and remove container, and set up local DNS, without asking for a password each time. macOS asks you to allow it once, in System Settings ▸ General ▸ Login Items & Extensions. Administrators aren't asked again; other accounts need an administrator's password.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -110,10 +147,10 @@ struct SettingsView: View {
 
             Section {
                 component(
-                    "ContainerManager", installed: AppUpdateChecker.installedVersion,
+                    "ContainerManager", installed: AppUpdater.installedVersion,
                     available: systemStore.availableAppUpdate
                 ) {
-                    Button("Get Update…") { systemStore.openAppReleasePage() }
+                    Button("Update…") { systemStore.installAppUpdate() }
                 }
                 component(
                     "Apple container", installed: systemStore.installedContainerVersion,
@@ -146,6 +183,21 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // Approving the helper happens in System Settings; pick it up on return.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await systemStore.refresh() }
+        }
+        .confirmationDialog("Uninstall container?", isPresented: $showUninstallConfirmation) {
+            Button("Uninstall, Keep Data", role: .destructive) {
+                Task { await systemStore.uninstall(deletingData: false) }
+            }
+            Button("Uninstall and Delete All Data", role: .destructive) {
+                Task { await systemStore.uninstall(deletingData: true) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This stops every running container and machine, then removes the container tool and its local DNS entries. Keeping data leaves your images, containers, volumes and machines for a reinstall; deleting it removes them for good.")
+        }
         .task { await refreshDNS() }
         .frame(width: 460, height: 520)
     }
@@ -193,7 +245,7 @@ struct SettingsView: View {
                     ProgressView().controlSize(.small)
                 } else {
                     Button("Set Up…") { Task { await setUpDNS() } }
-                        .disabled(!ContainerDNS.isValidDomain(dnsDomainField))
+                        .disabled(!ContainerDNS.isValidDomain(enteredDomain))
                 }
             }
             if dns.isIncomplete {
@@ -209,6 +261,11 @@ struct SettingsView: View {
         }
     }
 
+    /// DNS names are case-insensitive; resolver files and the helper expect lowercase.
+    private var enteredDomain: String {
+        dnsDomainField.trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
     private var incompleteDescription: String {
         if dns.defaultDomain == nil, let created = dns.resolverDomains.first {
             return "“\(created)” exists but nothing registers under it yet — set it up to finish."
@@ -221,7 +278,9 @@ struct SettingsView: View {
 
     private var dnsExplanation: String {
         let base =
-            "Makes containers reachable from this Mac by name, so a web UI is at my-app.\(dns.defaultDomain ?? dnsDomainField) rather than an address that changes. Setting it up asks for your administrator password, because macOS needs a resolver entry."
+            "Makes containers reachable from this Mac by name, so a web UI is at my-app.\(dns.defaultDomain ?? dnsDomainField) rather than an address that changes."
+            + (systemStore.helperStatus == .enabled
+                ? "" : " Setting it up asks for your administrator password, because macOS needs a resolver entry.")
         let caveats =
             " Containers get the names too, so a stack's services can address each other by name instead of by IP. Both a restart and re-creating a container are needed before it gets one."
         return base + caveats
@@ -231,7 +290,7 @@ struct SettingsView: View {
         dnsBusy = true
         dnsError = nil
         do {
-            let domain = dnsDomainField.trimmingCharacters(in: .whitespaces)
+            let domain = enteredDomain
             if !dns.resolverDomains.contains(domain) {
                 try await ContainerDNS.createResolverDomain(domain)
             }
@@ -252,9 +311,13 @@ struct SettingsView: View {
         dnsBusy = true
         dnsError = nil
         do {
-            // Only the config half is undone. The resolver entry is inert without it,
-            // and removing it would ask for the password again for no visible gain.
+            let domain = dns.defaultDomain
             try ContainerDNS.setDefaultDomain(nil)
+            // Without the helper the resolver entry stays: it's inert without the config,
+            // and removing it would mean another password prompt.
+            if let domain {
+                try await ContainerDNS.deleteResolverDomain(domain)
+            }
             await systemStore.restart()
             await refreshDNS()
         } catch {
@@ -268,6 +331,16 @@ struct SettingsView: View {
         if let domain = dns.defaultDomain ?? dns.resolverDomains.first {
             dnsDomainField = domain
         }
+    }
+
+    private func changeHelper(_ change: () async throws -> Void) async {
+        helperError = nil
+        do {
+            try await change()
+        } catch {
+            helperError = PresentedError(title: "Couldn't change the helper", error: error)
+        }
+        await systemStore.refresh()
     }
 
     private func chooseBinary() {
@@ -375,7 +448,7 @@ private struct ServiceDiagnostics: View {
 
     private var diagnostics: [String] {
         [
-            "ContainerManager: \(AppUpdateChecker.installedVersion)",
+            "ContainerManager: \(AppUpdater.installedVersion)",
             "Client libraries: \(ContainerVersion.linkedLibrary)",
             "Services: \(serviceVersion) (\(health.apiServerBuild))",
             "Services commit: \(health.apiServerCommit)",
