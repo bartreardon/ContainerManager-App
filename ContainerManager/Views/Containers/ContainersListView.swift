@@ -67,6 +67,7 @@ struct ContainersListView: View {
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
+        .remeasuredOnFirstLoad(isEmpty: store.containers.isEmpty)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter containers")
         .overlay(alignment: .bottom) {
             if let exportStatus {

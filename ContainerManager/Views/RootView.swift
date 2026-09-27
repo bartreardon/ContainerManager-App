@@ -45,7 +45,7 @@ struct RootView: View {
                         VolumesListView(selection: $router.selectedVolumeNames)
                     }
                 } else {
-                    DaemonGateView()
+                    Color.clear
                 }
             }
             // The content column owns the window/tab title in a NavigationSplitView,
@@ -69,7 +69,9 @@ struct RootView: View {
                     detail(router.selectedVolumeNames) { VolumeDetailView(volumeName: $0) }
                 }
             } else {
-                Color.clear
+                // The detail column, not the list column: at list width the gate's
+                // message and buttons were clipped rather than wrapped.
+                DaemonGateView()
             }
         }
         .frame(minWidth: 900, minHeight: 520)

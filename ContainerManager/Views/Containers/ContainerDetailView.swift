@@ -165,9 +165,9 @@ private struct ContainerDetailContent: View {
             if !container.configuration.publishedPorts.isEmpty {
                 Section {
                     ForEach(container.configuration.publishedPorts, id: \.hostPort) { port in
-                        LabeledContent("\(port.containerPort)/\(port.proto)") {
+                        LabeledContent {
                             HStack(spacing: 8) {
-                                Text("localhost:\(port.hostPort)")
+                                Text(verbatim: "localhost:\(port.hostPort)")
                                     .textSelection(.enabled)
                                 Button {
                                     open(hostPort: port.hostPort)
@@ -175,8 +175,11 @@ private struct ContainerDetailContent: View {
                                     Image(systemName: "safari")
                                 }
                                 .buttonStyle(.borderless)
-                                .help("Open \(WebAddress.scheme(forPort: port.hostPort))://localhost:\(port.hostPort) in your browser")
+                                .help(Text(verbatim: "Open \(WebAddress.scheme(forPort: port.hostPort))://localhost:\(port.hostPort) in your browser"))
                             }
+                        } label: {
+                            // Verbatim: a localized key formats numbers, turning 1337 into "1,337".
+                            Text(verbatim: "\(port.containerPort)/\(port.proto)")
                         }
                     }
                 } header: {
