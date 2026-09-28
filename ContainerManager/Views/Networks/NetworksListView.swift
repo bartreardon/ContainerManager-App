@@ -66,6 +66,7 @@ struct NetworksListView: View {
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
+        .remeasuredOnFirstLoad(isEmpty: store.networks.isEmpty)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter networks")
         .overlay {
             if store.networks.isEmpty {
@@ -151,6 +152,7 @@ struct NetworkRow: View {
                 HStack(spacing: 4) {
                     Text(network.name)
                         .fontWeight(.medium)
+                        .lineLimit(1)
                     if network.isBuiltin {
                         Text("Built-in")
                             .font(.caption2)

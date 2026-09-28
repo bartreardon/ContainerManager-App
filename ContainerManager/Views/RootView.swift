@@ -46,7 +46,7 @@ struct RootView: View {
                         VolumesListView(selection: $router.selectedVolumeNames)
                     }
                 } else {
-                    DaemonGateView()
+                    Color.clear
                 }
             }
             // The content column owns the window/tab title in a NavigationSplitView,
@@ -71,7 +71,9 @@ struct RootView: View {
                         detail(router.selectedVolumeNames) { VolumeDetailView(volumeName: $0) }
                     }
                 } else {
-                    Color.clear
+                    // The detail column, not the list column: at list width the gate's
+                    // message and buttons were clipped rather than wrapped.
+                    DaemonGateView()
                 }
             }
             // The other two columns declare a width and this one didn't, so nothing
@@ -101,6 +103,7 @@ struct RootView: View {
             if let item = destination.item { router.select(id: item, in: destination.section) }
         }
         .task { await systemStore.autoCheckForUpdatesIfDue() }
+        .task { await PrivilegedHelper.ensureCurrent() }
         // Slower once everything is up: this only watches for the subsystem going
         // away, while the visible list polls its own store.
         .autoRefresh(every: { systemStore.isReady ? .seconds(15) : .seconds(5) }) {

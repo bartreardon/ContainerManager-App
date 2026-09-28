@@ -6,9 +6,9 @@
 import AppKit
 import Foundation
 
-/// Downloads the official `container` installer package from GitHub releases and
-/// hands it to Installer.app (which verifies the signature and prompts for admin
-/// rights). We never run a privileged installer ourselves.
+/// Downloads the official `container` installer package from GitHub releases. The
+/// privileged helper installs it after checking it's Apple's notarized package; without
+/// the helper it goes to Installer.app, which checks and asks for admin rights itself.
 enum ContainerInstaller {
     static let releasesPage = URL(string: "https://github.com/apple/container/releases/latest")!
 

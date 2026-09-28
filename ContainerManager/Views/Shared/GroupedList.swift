@@ -68,3 +68,12 @@ struct GroupHeader: View {
         .accessibilityHint(isExpanded ? "Collapse" : "Expand")
     }
 }
+
+extension View {
+    /// Rebuilds a list when its first rows arrive. Rows that land while the list is still
+    /// appearing keep the table's default single-line height and are never re-measured,
+    /// so two-line rows render clipped; a list built with its rows present sizes them.
+    func remeasuredOnFirstLoad(isEmpty: Bool) -> some View {
+        id(isEmpty)
+    }
+}

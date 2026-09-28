@@ -15,6 +15,9 @@
 		AC0000000000000000000006 /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000106 /* TerminalProgress */; };
 		AC0000000000000000000007 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000107 /* SwiftTerm */; };
 		CC04E0372FFFA770009272FC /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000108 /* Yams */; };
+		CD0000000000000000000005 /* ContainerManagerHelper in Embed Helper */ = {isa = PBXBuildFile; fileRef = CD0000000000000000000001 /* ContainerManagerHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		CD0000000000000000000006 /* com.bartreardon.ContainerManager.Helper.plist in Embed LaunchDaemon */ = {isa = PBXBuildFile; fileRef = CD0000000000000000000002 /* com.bartreardon.ContainerManager.Helper.plist */; };
+		CD0000000000000000000011 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD0000000000000000000013 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,11 +28,45 @@
 			remoteGlobalIDString = CCCB1D162FDC34A50080B7ED;
 			remoteInfo = ContainerManager;
 		};
+		CD000000000000000000000F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CCCB1D0F2FDC34A50080B7ED /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CD0000000000000000000009;
+			remoteInfo = ContainerManagerHelper;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CD0000000000000000000007 /* Embed Helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				CD0000000000000000000005 /* ContainerManagerHelper in Embed Helper */,
+			);
+			name = "Embed Helper";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CD0000000000000000000008 /* Embed LaunchDaemon */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				CD0000000000000000000006 /* com.bartreardon.ContainerManager.Helper.plist in Embed LaunchDaemon */,
+			);
+			name = "Embed LaunchDaemon";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		CCAA000000000000000000A2 /* ContainerManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ContainerManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCCB1D172FDC34A50080B7ED /* ContainerManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContainerManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD0000000000000000000001 /* ContainerManagerHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ContainerManagerHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD0000000000000000000002 /* com.bartreardon.ContainerManager.Helper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = com.bartreardon.ContainerManager.Helper.plist; path = LaunchDaemons/com.bartreardon.ContainerManager.Helper.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -41,6 +78,16 @@
 		CCCB1D192FDC34A50080B7ED /* ContainerManager */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ContainerManager;
+			sourceTree = "<group>";
+		};
+		CD0000000000000000000003 /* ContainerManagerHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ContainerManagerHelper;
+			sourceTree = "<group>";
+		};
+		CD0000000000000000000004 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -58,6 +105,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CC04E0372FFFA770009272FC /* Yams in Frameworks */,
+				CD0000000000000000000011 /* Sparkle in Frameworks */,
 				AC0000000000000000000001 /* MachineAPIClient in Frameworks */,
 				AC0000000000000000000002 /* ContainerAPIClient in Frameworks */,
 				AC0000000000000000000003 /* ContainerResource in Frameworks */,
@@ -68,6 +116,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CD000000000000000000000B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -75,6 +130,9 @@
 			isa = PBXGroup;
 			children = (
 				CCCB1D192FDC34A50080B7ED /* ContainerManager */,
+				CD0000000000000000000003 /* ContainerManagerHelper */,
+				CD0000000000000000000004 /* Shared */,
+				CD0000000000000000000002 /* com.bartreardon.ContainerManager.Helper.plist */,
 				CCAA000000000000000000A1 /* ContainerManagerTests */,
 				CCCB1D182FDC34A50080B7ED /* Products */,
 			);
@@ -85,6 +143,7 @@
 			children = (
 				CCCB1D172FDC34A50080B7ED /* ContainerManager.app */,
 				CCAA000000000000000000A2 /* ContainerManagerTests.xctest */,
+				CD0000000000000000000001 /* ContainerManagerHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -122,13 +181,17 @@
 				CCCB1D132FDC34A50080B7ED /* Sources */,
 				CCCB1D142FDC34A50080B7ED /* Frameworks */,
 				CCCB1D152FDC34A50080B7ED /* Resources */,
+				CD0000000000000000000007 /* Embed Helper */,
+				CD0000000000000000000008 /* Embed LaunchDaemon */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CD0000000000000000000010 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				CCCB1D192FDC34A50080B7ED /* ContainerManager */,
+				CD0000000000000000000004 /* Shared */,
 			);
 			name = ContainerManager;
 			packageProductDependencies = (
@@ -140,10 +203,33 @@
 				AC0000000000000000000106 /* TerminalProgress */,
 				AC0000000000000000000107 /* SwiftTerm */,
 				AC0000000000000000000108 /* Yams */,
+				CD0000000000000000000013 /* Sparkle */,
 			);
 			productName = ContainerManager;
 			productReference = CCCB1D172FDC34A50080B7ED /* ContainerManager.app */;
 			productType = "com.apple.product-type.application";
+		};
+		CD0000000000000000000009 /* ContainerManagerHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CD000000000000000000000C /* Build configuration list for PBXNativeTarget "ContainerManagerHelper" */;
+			buildPhases = (
+				CD000000000000000000000A /* Sources */,
+				CD000000000000000000000B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CD0000000000000000000003 /* ContainerManagerHelper */,
+				CD0000000000000000000004 /* Shared */,
+			);
+			name = ContainerManagerHelper;
+			packageProductDependencies = (
+			);
+			productName = ContainerManagerHelper;
+			productReference = CD0000000000000000000001 /* ContainerManagerHelper */;
+			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
@@ -153,13 +239,16 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					CCAA000000000000000000A3 = {
 						CreatedOnToolsVersion = 26.4;
 						TestTargetID = CCCB1D162FDC34A50080B7ED;
 					};
 					CCCB1D162FDC34A50080B7ED = {
+						CreatedOnToolsVersion = 26.4;
+					};
+					CD0000000000000000000009 = {
 						CreatedOnToolsVersion = 26.4;
 					};
 				};
@@ -177,6 +266,7 @@
 				AC0000000000000000000201 /* XCRemoteSwiftPackageReference "container" */,
 				AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				AC0000000000000000000203 /* XCRemoteSwiftPackageReference "Yams" */,
+				CD0000000000000000000012 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CCCB1D182FDC34A50080B7ED /* Products */;
@@ -185,6 +275,7 @@
 			targets = (
 				CCCB1D162FDC34A50080B7ED /* ContainerManager */,
 				CCAA000000000000000000A3 /* ContainerManagerTests */,
+				CD0000000000000000000009 /* ContainerManagerHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -221,6 +312,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CD000000000000000000000A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -228,6 +326,11 @@
 			isa = PBXTargetDependency;
 			target = CCCB1D162FDC34A50080B7ED /* ContainerManager */;
 			targetProxy = CCAA000000000000000000A8 /* PBXContainerItemProxy */;
+		};
+		CD0000000000000000000010 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CD0000000000000000000009 /* ContainerManagerHelper */;
+			targetProxy = CD000000000000000000000F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -237,11 +340,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManagerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -257,11 +359,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManagerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -306,6 +407,8 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 4;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -327,10 +430,12 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -370,6 +475,8 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 4;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -385,9 +492,11 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -400,7 +509,7 @@
 				CODE_SIGN_ENTITLEMENTS = ContainerManager.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -417,7 +526,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.1.1;
+				MARKETING_VERSION = 1.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManager;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -438,7 +547,7 @@
 				CODE_SIGN_ENTITLEMENTS = ContainerManager.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -455,7 +564,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.1.1;
+				MARKETING_VERSION = 1.1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManager;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -463,6 +572,44 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		CD000000000000000000000D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManager.Helper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		CD000000000000000000000E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = N8GJ2Y5Z9T;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bartreardon.ContainerManager.Helper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 			};
@@ -498,6 +645,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		CD000000000000000000000C /* Build configuration list for PBXNativeTarget "ContainerManagerHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD000000000000000000000D /* Debug */,
+				CD000000000000000000000E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -506,7 +662,7 @@
 			repositoryURL = "https://github.com/apple/container.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.2.1;
+				version = 1.4.1;
 			};
 		};
 		AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
@@ -523,6 +679,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 6.2.1;
+			};
+		};
+		CD0000000000000000000012 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -567,6 +731,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AC0000000000000000000203 /* XCRemoteSwiftPackageReference "Yams" */;
 			productName = Yams;
+		};
+		CD0000000000000000000013 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD0000000000000000000012 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

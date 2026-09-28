@@ -4,6 +4,8 @@
 //
 
 import AppKit
+import ContainerAPIClient
+import ContainerResource
 import SwiftUI
 
 /// App preferences (⌘,). Keys are shared with the rest of the app via `@AppStorage`:
@@ -27,6 +29,8 @@ struct SettingsView: View {
     @State private var dnsDomainField = "test"
     @State private var dnsBusy = false
     @State private var dnsError: PresentedError?
+    @State private var helperError: PresentedError?
+    @State private var showUninstallConfirmation = false
 
     var body: some View {
         Form {
@@ -45,11 +49,46 @@ struct SettingsView: View {
                     Button("Choose…") { chooseBinary() }
                     Button("Use Automatic") { cliPath = "" }
                         .disabled(cliPath.isEmpty)
+                    Spacer()
+                    if systemStore.helperStatus == .enabled, systemStore.isInstalledFromPackage {
+                        Button("Uninstall container…", role: .destructive) {
+                            showUninstallConfirmation = true
+                        }
+                    }
                 }
             } header: {
                 Text("Container Tool")
             } footer: {
                 Text("Automatic checks the standard install, Homebrew (/opt/homebrew/bin), then the path reported by the running services. Set a path only to override.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Status", value: systemStore.helperStatus.label)
+                switch systemStore.helperStatus {
+                case .notRegistered:
+                    Button("Enable Helper…") {
+                        Task { await changeHelper { try PrivilegedHelper.register() } }
+                    }
+                case .requiresApproval:
+                    Button("Open Login Items…") { PrivilegedHelper.openLoginItems() }
+                case .enabled:
+                    Button("Disable Helper") {
+                        Task { await changeHelper { try await PrivilegedHelper.unregister() } }
+                    }
+                case .unavailable:
+                    EmptyView()
+                }
+                if let helperError {
+                    Text(helperError.message)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            } header: {
+                Text("Privileged Helper")
+            } footer: {
+                Text("Lets Container Manager install, update and remove container, and set up local DNS, without asking for a password each time. macOS asks you to allow it once, in System Settings ▸ General ▸ Login Items & Extensions. Administrators aren't asked again; other accounts need an administrator's password.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -71,6 +110,18 @@ struct SettingsView: View {
                 Text("Restarting stops every running container and machine, then starts the services again. Needed after changing something the services only read at startup, such as the DNS domain below.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if let health = systemStore.health {
+                Section {
+                    ServiceDiagnostics(health: health)
+                } header: {
+                    Text("Diagnostics")
+                } footer: {
+                    Text("What `container system status` reports. Copy Diagnostics puts it on the clipboard for a bug report.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section {
@@ -176,10 +227,10 @@ struct SettingsView: View {
 
             Section {
                 component(
-                    "ContainerManager", installed: AppUpdateChecker.installedVersion,
+                    "ContainerManager", installed: AppUpdater.installedVersion,
                     available: systemStore.availableAppUpdate
                 ) {
-                    Button("Get Update…") { systemStore.openAppReleasePage() }
+                    Button("Update…") { systemStore.installAppUpdate() }
                 }
                 component(
                     "Apple container", installed: systemStore.installedContainerVersion,
@@ -212,6 +263,21 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // Approving the helper happens in System Settings; pick it up on return.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await systemStore.refresh() }
+        }
+        .confirmationDialog("Uninstall container?", isPresented: $showUninstallConfirmation) {
+            Button("Uninstall, Keep Data", role: .destructive) {
+                Task { await systemStore.uninstall(deletingData: false) }
+            }
+            Button("Uninstall and Delete All Data", role: .destructive) {
+                Task { await systemStore.uninstall(deletingData: true) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This stops every running container and machine, then removes the container tool and its local DNS entries. Keeping data leaves your images, containers, volumes and machines for a reinstall; deleting it removes them for good.")
+        }
         .task { await refreshDNS() }
         .frame(width: 460, height: 600)
     }
@@ -259,7 +325,7 @@ struct SettingsView: View {
                     ProgressView().controlSize(.small)
                 } else {
                     Button("Set Up…") { Task { await setUpDNS() } }
-                        .disabled(!ContainerDNS.isValidDomain(dnsDomainField))
+                        .disabled(!ContainerDNS.isValidDomain(enteredDomain))
                 }
             }
             if dns.isIncomplete {
@@ -275,6 +341,11 @@ struct SettingsView: View {
         }
     }
 
+    /// DNS names are case-insensitive; resolver files and the helper expect lowercase.
+    private var enteredDomain: String {
+        dnsDomainField.trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
     private var incompleteDescription: String {
         if dns.defaultDomain == nil, let created = dns.resolverDomains.first {
             return "“\(created)” exists but nothing registers under it yet — set it up to finish."
@@ -287,7 +358,9 @@ struct SettingsView: View {
 
     private var dnsExplanation: String {
         let base =
-            "Makes containers reachable from this Mac by name, so a web UI is at my-app.\(dns.defaultDomain ?? dnsDomainField) rather than an address that changes. Setting it up asks for your administrator password, because macOS needs a resolver entry."
+            "Makes containers reachable from this Mac by name, so a web UI is at my-app.\(dns.defaultDomain ?? dnsDomainField) rather than an address that changes."
+            + (systemStore.helperStatus == .enabled
+                ? "" : " Setting it up asks for your administrator password, because macOS needs a resolver entry.")
         let caveats =
             " Containers get the names too, so a stack's services can address each other by name instead of by IP. Both a restart and re-creating a container are needed before it gets one."
         return base + caveats
@@ -297,7 +370,7 @@ struct SettingsView: View {
         dnsBusy = true
         dnsError = nil
         do {
-            let domain = dnsDomainField.trimmingCharacters(in: .whitespaces)
+            let domain = enteredDomain
             if !dns.resolverDomains.contains(domain) {
                 try await ContainerDNS.createResolverDomain(domain)
             }
@@ -318,9 +391,13 @@ struct SettingsView: View {
         dnsBusy = true
         dnsError = nil
         do {
-            // Only the config half is undone. The resolver entry is inert without it,
-            // and removing it would ask for the password again for no visible gain.
+            let domain = dns.defaultDomain
             try ContainerDNS.setDefaultDomain(nil)
+            // Without the helper the resolver entry stays: it's inert without the config,
+            // and removing it would mean another password prompt.
+            if let domain {
+                try await ContainerDNS.deleteResolverDomain(domain)
+            }
             await systemStore.restart()
             await refreshDNS()
         } catch {
@@ -336,6 +413,16 @@ struct SettingsView: View {
         }
     }
 
+    private func changeHelper(_ change: () async throws -> Void) async {
+        helperError = nil
+        do {
+            try await change()
+        } catch {
+            helperError = PresentedError(title: "Couldn't change the helper", error: error)
+        }
+        await systemStore.refresh()
+    }
+
     private func chooseBinary() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -346,5 +433,111 @@ struct SettingsView: View {
         if panel.runModal() == .OK, let url = panel.url {
             cliPath = url.path
         }
+    }
+}
+
+/// What `container system status` reports, gathered in-process: the daemon's health
+/// ping plus counts from the stores, so they match the lists.
+private struct ServiceDiagnostics: View {
+    let health: SystemHealth
+    @Environment(ContainersStore.self) private var containersStore
+    @Environment(ImagesStore.self) private var imagesStore
+
+    private var serviceVersion: String {
+        ContainerVersion.parse(health.apiServerVersion).map { "\($0.0).\($0.1).\($0.2)" }
+            ?? health.apiServerVersion
+    }
+
+    private var versionsDiffer: Bool {
+        guard let service = ContainerVersion.parse(health.apiServerVersion),
+            let linked = ContainerVersion.parse(ContainerVersion.linkedLibrary)
+        else { return false }
+        return service != linked
+    }
+
+    /// "macOS 27.0 (26A428) · 10 CPUs", from "Version 27.0 (Build 26A428)".
+    private var host: String {
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+            .replacingOccurrences(of: "Version ", with: "macOS ")
+            .replacingOccurrences(of: "Build ", with: "")
+        return "\(os) · \(ProcessInfo.processInfo.processorCount) CPUs"
+    }
+
+    private var runningCount: Int {
+        containersStore.containers.filter { $0.status == .running }.count
+    }
+
+    private var paths: [(label: String, path: String)] {
+        var paths = [
+            ("App root", health.appRoot.path(percentEncoded: false)),
+            ("Install root", health.installRoot.path(percentEncoded: false)),
+        ]
+        if let logRoot = health.logRoot {
+            paths.append(("Log root", String(describing: logRoot)))
+        }
+        return paths
+    }
+
+    var body: some View {
+        LabeledContent("Services", value: "\(serviceVersion) (\(health.apiServerBuild))")
+        LabeledContent("Commit") {
+            Text(health.apiServerCommit)
+                .font(.caption.monospaced())
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
+        LabeledContent("Client libraries", value: ContainerVersion.linkedLibrary)
+        if versionsDiffer {
+            Label(
+                "The services and ContainerManager's client libraries differ. Update whichever is older so they match.",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(.orange)
+            .font(.caption)
+        }
+        LabeledContent("Host", value: host)
+        ForEach(paths, id: \.label) { entry in
+            // An HStack rather than LabeledContent, which moves a long value onto a line
+            // of its own instead of truncating it.
+            HStack(spacing: 4) {
+                Text(entry.label)
+                Spacer(minLength: 16)
+                Text((entry.path as NSString).abbreviatingWithTildeInPath)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(entry.path)
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: entry.path)])
+                } label: {
+                    Image(systemName: "arrow.forward.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .help("Show in Finder")
+            }
+        }
+        LabeledContent("Containers", value: "\(runningCount) running of \(containersStore.containers.count)")
+        LabeledContent("Images", value: "\(imagesStore.images.count)")
+        Button("Copy Diagnostics") { Pasteboard.copy(diagnostics) }
+            .task {
+                await containersStore.refresh()
+                await imagesStore.refresh()
+            }
+    }
+
+    private var diagnostics: [String] {
+        [
+            "ContainerManager: \(AppUpdater.installedVersion)",
+            "Client libraries: \(ContainerVersion.linkedLibrary)",
+            "Services: \(serviceVersion) (\(health.apiServerBuild))",
+            "Services commit: \(health.apiServerCommit)",
+            "Host: \(host)",
+        ]
+            + paths.map { "\($0.label): \($0.path)" }
+            + [
+                "Containers: \(runningCount) running of \(containersStore.containers.count)",
+                "Images: \(imagesStore.images.count)",
+            ]
     }
 }

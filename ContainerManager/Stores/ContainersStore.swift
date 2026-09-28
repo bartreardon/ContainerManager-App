@@ -89,6 +89,13 @@ final class ContainersStore {
         }
     }
 
+    /// Trims a running container's writable filesystems so the host reclaims freed space.
+    func clean(id: String) async {
+        await perform(id: id, title: "Failed to reclaim unused space") {
+            try await ContainerClient().clean(id: id)
+        }
+    }
+
     func delete(id: String, force: Bool) async {
         await perform(id: id, title: "Failed to delete container") {
             try await ContainerClient().delete(id: id, force: force)

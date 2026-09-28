@@ -47,7 +47,6 @@ final class ImagesStore {
         let config = try await systemConfig()
         _ = try await ClientImage.pull(
             reference: reference,
-            scheme: .auto,
             containerSystemConfig: config,
             progressUpdate: progress.handler
         )

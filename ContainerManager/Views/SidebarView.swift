@@ -62,8 +62,8 @@ struct SystemStatusFooter: View {
                     }
                         .buttonStyle(.link)
                         .font(.caption2)
-                } else if let health = systemStore.health {
-                    Text("container \(health.apiServerVersion)")
+                } else if let version = systemStore.installedContainerVersion {
+                    Text("container \(version)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

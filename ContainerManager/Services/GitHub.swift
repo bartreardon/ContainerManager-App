@@ -6,11 +6,10 @@
 import Foundation
 
 /// Minimal GitHub REST client: fetches the latest published release for a repo.
-/// Shared by the container-tool and app update checks.
+/// Used for the container tool's updates; the app's own come through Sparkle.
 enum GitHub {
     struct Release: Decodable {
         let tagName: String
-        let htmlURL: URL
         let assets: [Asset]
 
         struct Asset: Decodable {
@@ -25,7 +24,6 @@ enum GitHub {
 
         enum CodingKeys: String, CodingKey {
             case tagName = "tag_name"
-            case htmlURL = "html_url"
             case assets
         }
     }

@@ -67,6 +67,7 @@ struct ContainersListView: View {
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
+        .remeasuredOnFirstLoad(isEmpty: store.containers.isEmpty)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter containers")
         .overlay(alignment: .bottom) {
             if let exportStatus {
@@ -130,6 +131,7 @@ struct ContainersListView: View {
         }
         if !running.isEmpty {
             Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
+            Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
         }
         Divider()
         Button("Delete \(ids.count) Container\(ids.count == 1 ? "" : "s")…", role: .destructive) {
@@ -148,6 +150,7 @@ struct ContainersListView: View {
             }
             if !running.isEmpty {
                 Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
+                Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
             }
             if ids.count == 1, let id = ids.first, store.container(withId: id)?.status == .running {
                 Button("Open Terminal") { router.openTerminal(id: id, in: .containers) }

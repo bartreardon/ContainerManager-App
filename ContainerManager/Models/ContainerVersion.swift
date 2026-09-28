@@ -11,12 +11,14 @@ import Foundation
 enum ContainerVersion {
     /// The minimum container version ContainerManager supports.
     ///
-    /// Raised to 1.2.0 when the app moved to the 1.2.1 client libraries: 1.2.0 is the
-    /// oldest daemon that combination has actually been verified against, and
-    /// `container export` for live containers needs 1.2.1. Older daemons would fail
-    /// obscurely over XPC rather than being told to update.
-    static let minimum = (1, 2, 0)
-    static let minimumString = "1.2.0"
+    /// Tracks the linked client libraries: older daemons fail obscurely over XPC rather
+    /// than being told to update, and pre-1.4.1 daemons lack the `clean` route.
+    static let minimum = (1, 4, 1)
+    static let minimumString = "1.4.1"
+
+    /// The apple/container package version the app is built against. Keep in step with
+    /// the exact-version pin in project.pbxproj.
+    static let linkedLibrary = "1.4.1"
 
     /// Extracts the first `major.minor.patch` triple found in the string.
     static func parse(_ string: String) -> (Int, Int, Int)? {

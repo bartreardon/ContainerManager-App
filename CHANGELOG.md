@@ -2,6 +2,31 @@
 
 All notable changes to ContainerManager.
 
+## Unreleased
+
+Moves to Apple's container 1.4.1, which fixes a number of security issues in image loading and unpacking, and picks up two of its new capabilities.
+
+### New
+- **ContainerManager updates itself.** **Update…** in Settings ▸ Updates, or **Update ContainerManager…** in the update alert, downloads the new version, checks its signature, and replaces and relaunches the app. It no longer just opens the release page. Checks still follow **Check automatically**.
+- **A privileged helper for the jobs that need root.** Enable it in Settings ▸ Privileged Helper and allow it once in System Settings. After that, updating `container`, setting up local DNS and turning it off happen without a password prompt for administrators; other accounts are asked for an administrator's password. The helper only installs Apple's notarized `container` package and only touches what that package installed, plus the `/etc/resolver` entries for local DNS.
+- **Uninstall container.** With the helper enabled, Settings ▸ Container Tool ▸ **Uninstall container…** stops the services and removes the tool and its local DNS entries. You can keep your images, containers, volumes and machines, or delete them too.
+- **Reclaim unused space from a running container.** Right-click a running container (or a stack service) ▸ **Reclaim Unused Space**. Files deleted inside a container don't shrink its disk image on the Mac; this hands that space back. It covers the container's own filesystem and any writable named volumes, so it's most worthwhile on a database that has churned through data. It's `container clean` from 1.4.1, and only works while the container is running.
+- **Service diagnostics in Settings.** A new **Diagnostics** section in Settings shows the services' version, build and commit, the client library version ContainerManager was built with, the host, the data, install and log folders (each with a Show in Finder button), and container and image counts. It's the same information as `container system status`. **Copy Diagnostics** puts it all on the clipboard for a bug report. If the services and client libraries differ, which is the usual cause of obscure errors, a warning says so.
+
+### Changed
+- **Built against container 1.4.1** (was 1.2.1).
+- **The minimum supported container version is now 1.4.1**, up from 1.2.0. The app's updater was already offering 1.4.1, and 1.2.1 client libraries talking to newer services is exactly the mismatch the app warns about. Older installs get the usual prompt to update.
+- **Registries are always reached over HTTPS.** container 1.3.0 removed the `auto` scheme, which quietly used plain HTTP for `localhost` and private-network registries. Pulling from a local registry that only speaks HTTP now fails.
+- The sidebar shows the container version as a plain number (e.g. `1.4.1`).
+- **Turning off local DNS removes the resolver entry** when the helper is enabled, instead of leaving an inert file in `/etc/resolver`.
+- **Local DNS domains are lowercase letters, digits and hyphens**, with each label up to 63 characters. What you type is lowercased.
+
+### Fixed
+- **Lists no longer squash their rows the first time they're shown.** Images, Networks and Volumes loaded their items just after the list appeared, and those rows kept a single-line height, so the second line vanished and sizes were cut off under the row dividers. Leaving the section and coming back used to be the only fix.
+- **Published ports read as numbers, not quantities.** A container's detail showed port 1337 as `1,337/tcp` and `localhost:1,337`.
+- **Long network names stay on one line** instead of wrapping beside the subnet.
+- **The "not running", "needs updating" and "not installed" screens fit.** They were drawn in the narrow list column, which cut off their text and buttons. They now fill the main area of the window.
+
 ## 1.1.0 — 2026-08-07
 
 Moves to Apple's container 1.2.1 and picks up two of its new capabilities.
