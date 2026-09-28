@@ -66,7 +66,7 @@ final class AppUpdater: NSObject {
 }
 
 // Sparkle calls its delegate on the main thread.
-extension AppUpdater: @preconcurrency SPUUpdaterDelegate {
+extension AppUpdater: SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         finishCheck(.success(item.displayVersionString))
     }
