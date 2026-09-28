@@ -9,6 +9,7 @@ struct RootView: View {
     @Environment(SystemStore.self) private var systemStore
     @Environment(StacksStore.self) private var stacksStore
     @State private var router = WindowRouter()
+    private let notificationRoute = NotificationRoute.shared
     @SceneStorage("selectedSection") private var storedSection = SidebarSection.machines.rawValue
 
     private var windowTitle: String {
@@ -53,26 +54,33 @@ struct RootView: View {
             .navigationTitle(windowTitle)
             .navigationSplitViewColumnWidth(min: 280, ideal: 340)
         } detail: {
-            if systemStore.isReady {
-                switch router.section {
-                case .stacks:
-                    detail(router.selectedStackNames) { StackDetailView(stackName: $0) }
-                case .machines:
-                    detail(router.selectedMachineIds) { MachineDetailView(machineId: $0) }
-                case .containers:
-                    detail(router.selectedContainerIds) { ContainerDetailView(containerId: $0) }
-                case .images:
-                    detail(router.selectedImageReferences) { ImageDetailView(reference: $0) }
-                case .networks:
-                    detail(router.selectedNetworkIds) { NetworkDetailView(networkId: $0) }
-                case .volumes:
-                    detail(router.selectedVolumeNames) { VolumeDetailView(volumeName: $0) }
+            Group {
+                if systemStore.isReady {
+                    switch router.section {
+                    case .stacks:
+                        detail(router.selectedStackNames) { StackDetailView(stackName: $0) }
+                    case .machines:
+                        detail(router.selectedMachineIds) { MachineDetailView(machineId: $0) }
+                    case .containers:
+                        detail(router.selectedContainerIds) { ContainerDetailView(containerId: $0) }
+                    case .images:
+                        detail(router.selectedImageReferences) { ImageDetailView(reference: $0) }
+                    case .networks:
+                        detail(router.selectedNetworkIds) { NetworkDetailView(networkId: $0) }
+                    case .volumes:
+                        detail(router.selectedVolumeNames) { VolumeDetailView(volumeName: $0) }
+                    }
+                } else {
+                    // The detail column, not the list column: at list width the gate's
+                    // message and buttons were clipped rather than wrapped.
+                    DaemonGateView()
                 }
-            } else {
-                // The detail column, not the list column: at list width the gate's
-                // message and buttons were clipped rather than wrapped.
-                DaemonGateView()
             }
+            // The other two columns declare a width and this one didn't, so nothing
+            // stopped the content column expanding into it — leaving labels wrapping one
+            // character per line and the usage graphs drawing in about 100pt. Detail
+            // holds forms and graphs, so it needs a floor of its own.
+            .navigationSplitViewColumnWidth(min: 360, ideal: 480)
         }
         .frame(minWidth: 900, minHeight: 520)
         .environment(router)
@@ -86,6 +94,14 @@ struct RootView: View {
         }
         .onChange(of: router.section) { storedSection = router.section.rawValue }
         .errorAlert($systemStore.lastError)
+        // A tapped notification lands on the app delegate, which has no window to route
+        // through — so it leaves the destination here for whichever window takes it.
+        .onChange(of: notificationRoute.pending) { _, destination in
+            guard let destination else { return }
+            notificationRoute.pending = nil
+            router.select(destination.section)
+            if let item = destination.item { router.select(id: item, in: destination.section) }
+        }
         .task { await systemStore.autoCheckForUpdatesIfDue() }
         .task { await PrivilegedHelper.ensureCurrent() }
         // Slower once everything is up: this only watches for the subsystem going

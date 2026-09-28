@@ -7,11 +7,40 @@ import Foundation
 
 enum Format {
     nonisolated static func bytes(_ count: UInt64) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
+        bytes(Int64(count))
     }
 
     nonisolated static func bytes(_ count: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
+        // Not `ByteCountFormatter.string(fromByteCount:countStyle:)`: that convenience
+        // spells zero as the word "Zero", so an idle container's throughput read
+        // "Zero KB/s". Fine in prose, wrong in a column of figures.
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter.string(fromByteCount: count)
+    }
+
+    /// A byte *rate*, or "—" when the counter wasn't reported.
+    ///
+    /// Built on `bytes` so throughput and image sizes read alike. That makes it decimal
+    /// (MB) where `container stats` prints binary (MiB), so the two disagree by about 7%
+    /// — matching the rest of the interface wins, since these numbers sit beside other
+    /// app-formatted sizes and never beside the CLI's.
+    nonisolated static func rate(_ bytesPerSecond: Double?) -> String {
+        guard let bytesPerSecond else { return "—" }
+        return "\(bytes(UInt64(max(0, bytesPerSecond.rounded()))))/s"
+    }
+
+    /// A percentage to one decimal place, or "—" when unknown.
+    nonisolated static func percent(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        return value.formatted(.number.precision(.fractionLength(1))) + "%"
+    }
+
+    /// A process count, or "—" when unknown.
+    nonisolated static func count(_ value: UInt64?) -> String {
+        guard let value else { return "—" }
+        return value.formatted()
     }
 }
 
