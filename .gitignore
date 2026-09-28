@@ -1,1 +1,4 @@
 .DS_Store
+
+# Per-user Xcode state (window layout, scheme ordering)
+xcuserdata/
