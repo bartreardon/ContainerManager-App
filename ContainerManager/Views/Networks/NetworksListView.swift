@@ -66,7 +66,7 @@ struct NetworksListView: View {
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
-        .remeasuredOnFirstLoad(isEmpty: store.networks.isEmpty)
+        .remeasuredWhenRowsChange(groups.flatMap { [$0.name] + $0.items.map(\.id) })
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter networks")
         .overlay {
             if store.networks.isEmpty {
