@@ -102,7 +102,7 @@ struct ImagesListView: View {
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
-        .remeasuredOnFirstLoad(isEmpty: store.images.isEmpty)
+        .remeasuredWhenRowsChange(groups.flatMap { [$0.name] + $0.items.map(\.reference) })
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter images")
         .overlay(alignment: .bottom) {
             if let archiveStatus {

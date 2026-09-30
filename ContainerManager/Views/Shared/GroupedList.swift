@@ -70,10 +70,12 @@ struct GroupHeader: View {
 }
 
 extension View {
-    /// Rebuilds a list when its first rows arrive. Rows that land while the list is still
-    /// appearing keep the table's default single-line height and are never re-measured,
-    /// so two-line rows render clipped; a list built with its rows present sizes them.
-    func remeasuredOnFirstLoad(isEmpty: Bool) -> some View {
-        id(isEmpty)
+    /// Rebuilds a list when its rows or groups change. Rows a refresh adds — on the first
+    /// load, or a new item later — keep the table's default single-line height and are
+    /// never re-measured, so two-line rows render clipped; a list built with its rows
+    /// already present sizes them. Expanding a group animates and measures fine, so
+    /// what's expanded isn't part of the key.
+    func remeasuredWhenRowsChange(_ rows: [String]) -> some View {
+        id(rows)
     }
 }

@@ -46,12 +46,25 @@ enum ContainerLauncher {
         management.remove = spec.autoRemove
         // Takes precedence over --os/--arch; lets an amd64-only image run under emulation.
         management.platform = spec.platform
+        let advanced = spec.advanced
+        management.entrypoint = advanced.entrypoint
+        management.tmpFs = advanced.tmpfs
+        management.readOnly = advanced.readOnly
+        management.useInit = advanced.useInit
+        management.rosetta = advanced.rosetta
+        management.ssh = advanced.ssh
+        management.virtualization = advanced.virtualization
+        management.capAdd = advanced.capAdd
+        management.capDrop = advanced.capDrop
 
         var processFlags = try Flags.Process.parse([])
         processFlags.env = spec.env
+        processFlags.cwd = advanced.workingDirectory
+        processFlags.user = advanced.user
+        processFlags.tty = advanced.tty
 
         // Quote-aware so `sh -c "a && b"` stays three arguments.
-        let arguments = ShellWords.split(spec.command)
+        let arguments = advanced.arguments ?? ShellWords.split(spec.command)
 
         let configuration: ContainerConfiguration
         let kernel: Kernel
@@ -92,7 +105,7 @@ enum ContainerLauncher {
         if start {
             await progress.setPhase("Starting container")
             do {
-                try await startDetached(id: id, client: client)
+                try await startDetached(id: id, tty: advanced.tty, client: client)
             } catch {
                 try? await client.delete(id: id)
                 throw error

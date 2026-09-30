@@ -85,7 +85,7 @@ struct VolumesListView: View {
         .contextMenu(forSelectionType: String.self) { ids in
             rowMenu(ids)
         }
-        .remeasuredOnFirstLoad(isEmpty: store.volumes.isEmpty)
+        .remeasuredWhenRowsChange(groups.flatMap { [$0.name] + $0.volumes.map(\.id) })
         .searchable(text: $searchText, placement: .sidebar, prompt: "Filter volumes")
         .overlay {
             if store.volumes.isEmpty {

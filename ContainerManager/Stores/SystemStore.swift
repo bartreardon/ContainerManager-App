@@ -82,6 +82,7 @@ final class SystemStore {
 
         if registered, let health = try? await ClientHealthCheck.ping(timeout: .seconds(3)) {
             CLIPathResolver.observe(health: health)
+            ContainerPaths.observe(health: health)
             self.health = health
             guard ContainerVersion.meetsMinimum(health.apiServerVersion) else {
                 status = .outdated(displayVersion(health.apiServerVersion))
