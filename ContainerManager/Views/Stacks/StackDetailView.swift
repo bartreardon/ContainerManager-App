@@ -48,6 +48,7 @@ private struct StackDetailContent: View {
     @State private var serviceSheet: ServiceSheetKind?
     @State private var repairProgress = GuiProgress()
     @State private var showLog = false
+    @State private var recreateCandidate: ContainerSnapshot?
     @State private var displayName: String
     @State private var icon: String
 
@@ -294,10 +295,16 @@ private struct StackDetailContent: View {
                         .disabled(service.status != .running)
                         Button("Open in Terminal.app") { openInTerminalApp(service.id) }
                             .disabled(service.status != .running)
-                        Button("Reclaim Unused Space") {
-                            Task { await store.cleanService(id: service.id, in: stack.name) }
+                        if store.needsRecreateToReclaim.contains(service.id) {
+                            // Its in-VM agent predates `container clean`; re-creating updates it.
+                            Button("Re-create to Reclaim Space…") { recreateCandidate = service }
+                                .disabled(isBusy)
+                        } else {
+                            Button("Reclaim Unused Space") {
+                                Task { await store.cleanService(id: service.id, in: stack.name) }
+                            }
+                            .disabled(service.status != .running)
                         }
-                        .disabled(service.status != .running)
                         Divider()
                         Button("Replace…") { serviceSheet = .replace(service) }
                         Button("Remove from Stack", role: .destructive) {
@@ -385,6 +392,12 @@ private struct StackDetailContent: View {
             }
         }
         .formStyle(.grouped)
+        .overlay(alignment: .bottom) {
+            if let recreating = store.recreating {
+                BusyBanner(text: "Re-creating “\(recreating.id)”… \(recreating.progress.phase)")
+            }
+        }
+        .animation(.default, value: store.recreating?.id)
         // One claim for the whole pane, covering the total and every service row. The
         // id restarts it as services come and go, so a newly started service starts
         // being sampled without waiting for the pane to be reopened.
@@ -451,6 +464,34 @@ private struct StackDetailContent: View {
             }
         } message: {
             Text("Removes all \(stack.services.count) containers and the stack network. Data volumes are kept — delete them from the Volumes section if you want them gone.")
+        }
+        .confirmationDialog(
+            "Re-create “\(recreateCandidate.map { $0.configuration.labels[StackLabels.role] ?? $0.id } ?? "")”?",
+            isPresented: Binding(
+                get: { recreateCandidate != nil }, set: { if !$0 { recreateCandidate = nil } }),
+            presenting: recreateCandidate
+        ) { service in
+            Button("Re-create", role: .destructive) {
+                Task { await store.recreateService(id: service.id, in: stack.name) }
+            }
+        } message: { service in
+            Text(
+                ContainerRecreation.confirmationMessage(for: service)
+                    + (stack.services.count > 1 && StackDefinitionStore.load(for: stack.name) != nil
+                        ? " Services that depend on it are updated with its new address." : ""))
+        }
+        .alert(
+            "Reclaiming space needs a re-create",
+            isPresented: Binding(
+                get: { store.recreateOffer != nil }, set: { if !$0 { store.recreateOffer = nil } }),
+            presenting: store.recreateOffer
+        ) { offer in
+            Button("Re-create…") {
+                recreateCandidate = stack.services.first { $0.id == offer.containerID }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { offer in
+            Text(offer.errorDescription ?? "")
         }
     }
 }

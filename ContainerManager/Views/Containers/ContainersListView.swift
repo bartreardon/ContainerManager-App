@@ -16,6 +16,7 @@ struct ContainersListView: View {
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
     @State private var exportStatus: String?
+    @State private var recreateCandidate: String?
     @SceneStorage("containerCollapsedGroups") private var collapsedGroups = ""
 
     private var containers: [ContainerSnapshot] {
@@ -72,9 +73,12 @@ struct ContainersListView: View {
         .overlay(alignment: .bottom) {
             if let exportStatus {
                 BusyBanner(text: exportStatus)
+            } else if let recreating = store.recreating {
+                BusyBanner(text: "Re-creating “\(recreating.id)”… \(recreating.progress.phase)")
             }
         }
         .animation(.default, value: exportStatus)
+        .animation(.default, value: store.recreating?.id)
         .overlay {
             if store.containers.isEmpty {
                 ContentUnavailableView {
@@ -113,6 +117,31 @@ struct ContainersListView: View {
         } message: {
             Text("This permanently removes the container.")
         }
+        .confirmationDialog(
+            "Re-create “\(recreateCandidate ?? "")”?",
+            isPresented: Binding(
+                get: { recreateCandidate != nil }, set: { if !$0 { recreateCandidate = nil } })
+        ) {
+            if let id = recreateCandidate {
+                Button("Re-create", role: .destructive) { Task { await store.recreate(id: id) } }
+                Button("Export Filesystem First…") { export(id) }
+            }
+        } message: {
+            if let id = recreateCandidate, let container = store.container(withId: id) {
+                Text(ContainerRecreation.confirmationMessage(for: container))
+            }
+        }
+        .alert(
+            "Reclaiming space needs a re-create",
+            isPresented: Binding(
+                get: { store.recreateOffer != nil }, set: { if !$0 { store.recreateOffer = nil } }),
+            presenting: store.recreateOffer
+        ) { offer in
+            Button("Re-create…") { recreateCandidate = offer.containerID }
+            Button("Cancel", role: .cancel) {}
+        } message: { offer in
+            Text(offer.errorDescription ?? "")
+        }
         .errorAlert($store.lastError)
         .onCreateRequest(for: .containers) { showCreateSheet = true }
         .autoRefresh { await store.refresh() }
@@ -132,9 +161,11 @@ struct ContainersListView: View {
         if !running.isEmpty {
             Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
         }
-        // Always listed so it can be found; `container clean` only works on a running container.
-        Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
-            .disabled(running.isEmpty)
+        // Always listed so it can be found; `container clean` only works on a running container
+        // whose in-VM agent is recent enough.
+        let cleanable = running.filter { !store.needsRecreateToReclaim.contains($0) }
+        Button("Reclaim Unused Space") { Task { for id in cleanable { await store.clean(id: id) } } }
+            .disabled(cleanable.isEmpty)
         Divider()
         Button("Delete \(ids.count) Container\(ids.count == 1 ? "" : "s")…", role: .destructive) {
             deleteCandidates = ids
@@ -153,9 +184,16 @@ struct ContainersListView: View {
             if !running.isEmpty {
                 Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
             }
-            // Always listed so it can be found; `container clean` only works on a running container.
-            Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
-                .disabled(running.isEmpty)
+            if ids.count == 1, let id = ids.first, store.needsRecreateToReclaim.contains(id) {
+                // Its in-VM agent predates `container clean`; re-creating updates it.
+                Button("Re-create to Reclaim Space…") { recreateCandidate = id }
+                    .disabled(store.isBusy(id))
+            } else {
+                // Always listed so it can be found; `container clean` only works on a running container.
+                let cleanable = running.filter { !store.needsRecreateToReclaim.contains($0) }
+                Button("Reclaim Unused Space") { Task { for id in cleanable { await store.clean(id: id) } } }
+                    .disabled(cleanable.isEmpty)
+            }
             if ids.count == 1, let id = ids.first, store.container(withId: id)?.status == .running {
                 Button("Open Terminal") { router.openTerminal(id: id, in: .containers) }
                 Button("Open in Terminal.app") { openInTerminalApp(id) }

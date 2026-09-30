@@ -31,6 +31,29 @@ struct ContainerCreateSpec {
     var platform: String? = nil
     var autoRemove: Bool
     var startAfterCreate: Bool
+    /// Settings the create sheets don't offer, used when re-creating a container exactly.
+    var advanced = ContainerAdvancedSettings()
+}
+
+/// The rest of a container's configuration, for a faithful re-create. Defaults leave
+/// the create path behaving as it always has.
+struct ContainerAdvancedSettings: Equatable {
+    /// Replaces the image's ENTRYPOINT; with it set, the image's CMD isn't appended.
+    var entrypoint: String?
+    /// Used as-is instead of splitting `command`.
+    var arguments: [String]?
+    var workingDirectory: String?
+    var user: String?
+    var tty = false
+    /// "destination[:options]" entries.
+    var tmpfs: [String] = []
+    var readOnly = false
+    var useInit = false
+    var rosetta = false
+    var ssh = false
+    var virtualization = false
+    var capAdd: [String] = []
+    var capDrop: [String] = []
 }
 
 @Observable
@@ -38,6 +61,17 @@ final class ContainersStore {
     private(set) var containers: [ContainerSnapshot] = []
     private(set) var busyIds: Set<String> = []
     var lastError: PresentedError?
+
+    /// Containers whose in-VM agent is too old to reclaim space. Their menus offer
+    /// Re-create instead; the rest keep Reclaim Unused Space.
+    private(set) var needsRecreateToReclaim: Set<String> = []
+    /// A container whose Reclaim failed because its agent is too old, waiting on the
+    /// user to re-create it or not.
+    var recreateOffer: ReclaimSpace.NeedsRecreating?
+    /// The container being re-created, and how far it's got.
+    private(set) var recreating: (id: String, progress: GuiProgress)?
+    /// The IDs `needsRecreateToReclaim` was worked out for; it's redone when they change.
+    private var agentCheckedIDs: [String]?
 
     func container(withId id: String) -> ContainerSnapshot? {
         containers.first { $0.id == id }
@@ -54,6 +88,11 @@ final class ContainersStore {
             containers = try await ContainerClient().list(filters: filters).sorted { $0.id < $1.id }
         } catch {
             lastError = PresentedError(title: "Failed to load containers", error: error)
+        }
+        let ids = containers.map(\.id)
+        if ids != agentCheckedIDs {
+            agentCheckedIDs = ids
+            needsRecreateToReclaim = await ContainerAgent.tooOldToReclaim(ids)
         }
     }
 
@@ -92,7 +131,24 @@ final class ContainersStore {
     /// Trims a running container's writable filesystems so the host reclaims freed space.
     func clean(id: String) async {
         await perform(id: id, title: "Failed to reclaim unused space") {
-            try await ReclaimSpace.clean(id: id)
+            do {
+                try await ReclaimSpace.clean(id: id)
+            } catch let needsRecreating as ReclaimSpace.NeedsRecreating {
+                recreateOffer = needsRecreating
+            }
+        }
+    }
+
+    /// Rebuilds a container from its own settings on the current in-VM agent.
+    func recreate(id: String) async {
+        guard let container = container(withId: id) else { return }
+        let progress = GuiProgress()
+        recreating = (id, progress)
+        defer { recreating = nil }
+        await perform(id: id, title: "Failed to re-create container") {
+            // Same ID, new agent: work out which containers need re-creating again.
+            defer { agentCheckedIDs = nil }
+            try await ContainerRecreation.recreate(container, progress: progress)
         }
     }
 

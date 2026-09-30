@@ -105,6 +105,15 @@ final class StacksStore {
     private(set) var busyNames: Set<String> = []
     var lastError: PresentedError?
 
+    /// Services whose in-VM agent is too old to reclaim space; their menus offer
+    /// Re-create instead.
+    private(set) var needsRecreateToReclaim: Set<String> = []
+    /// A service whose Reclaim failed because its agent is too old.
+    var recreateOffer: ReclaimSpace.NeedsRecreating?
+    /// The service being re-created, and how far it's got.
+    private(set) var recreating: (id: String, progress: GuiProgress)?
+    private var agentCheckedIDs: [String]?
+
     func stack(named name: String) -> Stack? {
         stacks.first { $0.name == name }
     }
@@ -134,6 +143,11 @@ final class StacksStore {
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
         } catch {
             lastError = PresentedError(title: "Failed to load stacks", error: error)
+        }
+        let ids = stacks.flatMap { $0.services.map(\.id) }.sorted()
+        if ids != agentCheckedIDs {
+            agentCheckedIDs = ids
+            needsRecreateToReclaim = await ContainerAgent.tooOldToReclaim(ids)
         }
     }
 
@@ -220,13 +234,9 @@ final class StacksStore {
             // Rebuilding from the definition instead would silently revert anything
             // edited since — a corrected secret, a tweaked command — which is exactly
             // the kind of work that must not disappear.
-            var replacement = ContainerServiceSpec.spec(
-                from: container, key: defined.key, displayName: defined.displayName)
-            replacement.env = ContainerServiceSpec.applying(expected, to: replacement.env)
-
             do {
-                try await addService(
-                    to: stackName, service: replacement, replacing: container, progress: progress)
+                try await ContainerRecreation.recreate(
+                    container, environmentUpdates: expected, progress: progress)
                 repaired.append(defined.key)
             } catch {
                 lastError = PresentedError(
@@ -364,7 +374,32 @@ final class StacksStore {
     /// so the host reclaims freed space.
     func cleanService(id: String, in stackName: String) async {
         await perform(name: stackName, title: "Failed to reclaim unused space") {
-            try await ReclaimSpace.clean(id: id)
+            do {
+                try await ReclaimSpace.clean(id: id)
+            } catch let needsRecreating as ReclaimSpace.NeedsRecreating {
+                recreateOffer = needsRecreating
+            }
+        }
+    }
+
+    /// Rebuilds a service from its own settings on the current in-VM agent. Its address
+    /// may change, so any service with it baked in is updated to match afterwards.
+    func recreateService(id: String, in stackName: String) async {
+        guard let service = stack(named: stackName)?.services.first(where: { $0.id == id }) else { return }
+        let role = Self.role(of: service)
+        let progress = GuiProgress()
+        recreating = (id, progress)
+        defer { recreating = nil }
+        await perform(name: stackName, title: "Couldn’t re-create “\(role)”") {
+            defer { agentCheckedIDs = nil }
+            try await ContainerRecreation.recreate(service, progress: progress)
+            StackLog.append(
+                section: "Re-created service “\(role)”",
+                lines: ["image: \(service.configuration.image.reference)"],
+                to: stackName)
+            if let plan = StackDefinitionStore.load(for: stackName)?.plan() {
+                await reconcileAddresses(in: stackName, plan: plan)
+            }
         }
     }
 
