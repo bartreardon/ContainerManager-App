@@ -131,8 +131,10 @@ struct ContainersListView: View {
         }
         if !running.isEmpty {
             Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
-            Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
         }
+        // Always listed so it can be found; `container clean` only works on a running container.
+        Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
+            .disabled(running.isEmpty)
         Divider()
         Button("Delete \(ids.count) Container\(ids.count == 1 ? "" : "s")…", role: .destructive) {
             deleteCandidates = ids
@@ -150,8 +152,10 @@ struct ContainersListView: View {
             }
             if !running.isEmpty {
                 Button("Stop") { Task { for id in running { await store.stop(id: id) } } }
-                Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
             }
+            // Always listed so it can be found; `container clean` only works on a running container.
+            Button("Reclaim Unused Space") { Task { for id in running { await store.clean(id: id) } } }
+                .disabled(running.isEmpty)
             if ids.count == 1, let id = ids.first, store.container(withId: id)?.status == .running {
                 Button("Open Terminal") { router.openTerminal(id: id, in: .containers) }
                 Button("Open in Terminal.app") { openInTerminalApp(id) }

@@ -364,7 +364,7 @@ final class StacksStore {
     /// so the host reclaims freed space.
     func cleanService(id: String, in stackName: String) async {
         await perform(name: stackName, title: "Failed to reclaim unused space") {
-            try await ContainerClient().clean(id: id)
+            try await ReclaimSpace.clean(id: id)
         }
     }
 
