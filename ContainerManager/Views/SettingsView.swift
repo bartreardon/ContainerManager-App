@@ -69,13 +69,23 @@ struct SettingsView: View {
                 switch systemStore.helperStatus {
                 case .notRegistered:
                     Button("Enable Helper…") {
-                        Task { await changeHelper { try PrivilegedHelper.register() } }
+                        Task {
+                            await changeHelper {
+                                AppDefaults.helperTurnedOff = false
+                                try PrivilegedHelper.register()
+                            }
+                        }
                     }
                 case .requiresApproval:
                     Button("Open Login Items…") { PrivilegedHelper.openLoginItems() }
                 case .enabled:
                     Button("Disable Helper") {
-                        Task { await changeHelper { try await PrivilegedHelper.unregister() } }
+                        Task {
+                            await changeHelper {
+                                try await PrivilegedHelper.unregister()
+                                AppDefaults.helperTurnedOff = true
+                            }
+                        }
                     }
                 case .unavailable:
                     EmptyView()
@@ -88,7 +98,7 @@ struct SettingsView: View {
             } header: {
                 Text("Privileged Helper")
             } footer: {
-                Text("Lets Container Manager install, update and remove container, and set up local DNS, without asking for a password each time. macOS asks you to allow it once, in System Settings ▸ General ▸ Login Items & Extensions. Administrators aren't asked again; other accounts need an administrator's password.")
+                Text("Lets Container Manager install, update and remove container, and set up local DNS, without asking for a password each time. It's on by default; macOS asks you to allow it once, in System Settings ▸ General ▸ Login Items & Extensions. Administrators aren't asked again; other accounts need an administrator's password. If you disable it here, it stays off.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

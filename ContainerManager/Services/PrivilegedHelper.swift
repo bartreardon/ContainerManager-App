@@ -5,6 +5,7 @@
 
 import AppKit
 import Foundation
+import os
 import Security
 import ServiceManagement
 import XPC
@@ -34,6 +35,8 @@ enum PrivilegedHelper {
         var errorDescription: String? { message }
     }
 
+    private static let log = Logger(subsystem: "com.bartreardon.ContainerManager", category: "PrivilegedHelper")
+
     private static var service: SMAppService {
         SMAppService.daemon(plistName: HelperIdentity.launchDaemonPlist)
     }
@@ -55,9 +58,23 @@ enum PrivilegedHelper {
                 .appending(path: "Contents/Library/LaunchDaemons/\(HelperIdentity.launchDaemonPlist)").path)
     }
 
+    /// Registers the helper on launch, since it's on by default, unless the user has
+    /// disabled it in Settings. Doesn't open System Settings: macOS posts its own
+    /// notification about the new background item, and Settings shows it awaiting approval.
+    /// Turning it off in System Settings instead leaves it registered but not allowed,
+    /// which this also leaves alone.
+    static func registerByDefault() {
+        guard !AppDefaults.helperTurnedOff, status == .notRegistered else { return }
+        do {
+            try register(openingSettings: false)
+        } catch {
+            log.error("Couldn't register the helper: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     /// Registers the helper. The first time, macOS holds it for the user to allow in
     /// System Settings ▸ General ▸ Login Items & Extensions, which this then opens.
-    static func register() throws {
+    static func register(openingSettings: Bool = true) throws {
         guard !Bundle.main.bundlePath.contains("/AppTranslocation/") else {
             throw HelperFailure(message: "Move Container Manager to the Applications folder first.")
         }
@@ -66,7 +83,7 @@ enum PrivilegedHelper {
         } catch {
             guard service.status == .requiresApproval else { throw error }
         }
-        if service.status == .requiresApproval {
+        if openingSettings, service.status == .requiresApproval {
             SMAppService.openSystemSettingsLoginItems()
         }
     }
