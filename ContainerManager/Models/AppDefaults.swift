@@ -42,6 +42,7 @@ enum AppDefaults {
     static let showMenuBarIconKey = "showMenuBarIcon"
     static let updateCheckFrequencyKey = "updateCheckFrequency"
     static let lastUpdateCheckKey = "lastUpdateCheck"
+    static let helperTurnedOffKey = "privilegedHelperTurnedOff"
 
     // Notifications. Off by default: an app that starts talking before being asked is
     // one people silence permanently.
@@ -86,6 +87,13 @@ enum AppDefaults {
     static var lastUpdateCheck: Date {
         get { Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: lastUpdateCheckKey)) }
         set { UserDefaults.standard.set(newValue.timeIntervalSince1970, forKey: lastUpdateCheckKey) }
+    }
+
+    /// The user disabled the privileged helper in Settings, so it isn't registered again
+    /// on launch. Unset means on: the helper is enabled by default.
+    static var helperTurnedOff: Bool {
+        get { UserDefaults.standard.bool(forKey: helperTurnedOffKey) }
+        set { UserDefaults.standard.set(newValue, forKey: helperTurnedOffKey) }
     }
 
     /// Master switch. Every other notification setting is read only when this is on.

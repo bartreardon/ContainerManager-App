@@ -40,9 +40,13 @@ enum ContainerInstaller {
         return Release(version: release.tagName, pkgURL: asset.browserDownloadURL)
     }
 
-    /// Downloads the package to a temporary `.pkg` file.
-    static func download(_ release: Release) async throws -> URL {
-        let (tempURL, response) = try await URLSession.shared.download(from: release.pkgURL)
+    /// Downloads the package to a temporary `.pkg` file, calling `progress` with the
+    /// fraction done (0–1) as it arrives, from a background thread.
+    static func download(
+        _ release: Release, progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> URL {
+        let (tempURL, response) = try await URLSession.shared.download(
+            from: release.pkgURL, delegate: DownloadProgress(progress))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw InstallerError.badResponse
         }
@@ -57,5 +61,27 @@ enum ContainerInstaller {
     @MainActor
     static func launchInstaller(pkg: URL) {
         NSWorkspace.shared.open(pkg)
+    }
+}
+
+/// Watches a download task's progress and reports it in whole-percent steps, so the
+/// interface isn't updated for every packet.
+private nonisolated final class DownloadProgress: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let report: @Sendable (Double) -> Void
+    private var observation: NSKeyValueObservation?
+    private var lastPercent = -1
+
+    init(_ report: @escaping @Sendable (Double) -> Void) {
+        self.report = report
+    }
+
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        observation = task.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
+            guard let self else { return }
+            let percent = Int(progress.fractionCompleted * 100)
+            guard percent != lastPercent else { return }
+            lastPercent = percent
+            report(progress.fractionCompleted)
+        }
     }
 }

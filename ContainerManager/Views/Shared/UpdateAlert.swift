@@ -47,7 +47,9 @@ enum UpdateAlert {
             choices.append(Choice(title: "Update container…") { Task { await store.applyUpdate() } })
         }
         if summary.app != nil {
-            choices.append(Choice(title: "Update ContainerManager…") { store.installAppUpdate() })
+            // Found without Sparkle, it can only be downloaded from the release page.
+            let title = store.appUpdateNeedsDownload ? "Download ContainerManager…" : "Update ContainerManager…"
+            choices.append(Choice(title: title) { store.installAppUpdate() })
         }
         // Trailing button: nothing to do either way, but it shouldn't say "Later" when
         // there's nothing to be later about.

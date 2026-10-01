@@ -21,8 +21,9 @@ final class SystemStore {
     private(set) var health: SystemHealth?
     /// Streamed output from `system start` / repair.
     private(set) var actionOutput: [String] = []
-    /// Short progress message during install.
-    private(set) var busyMessage: String?
+    /// What an install, update or uninstall is doing right now; nil when none is running.
+    /// The interface shows it in a progress panel.
+    private(set) var installProgress: InstallProgress?
     var lastError: PresentedError?
     /// A pending update message for the interface to present. The store decides what
     /// there is to say and what can be done about it; the view decides how it looks.
@@ -33,6 +34,9 @@ final class SystemStore {
     private(set) var availableUpdate: String?
     /// Latest ContainerManager release when newer than the running app; nil otherwise.
     private(set) var availableAppUpdate: String?
+    /// Set when `availableAppUpdate` came from GitHub because the Sparkle feed couldn't
+    /// be read. Sparkle can't install it then, so updating opens the release page instead.
+    private(set) var appUpdateNeedsDownload = false
 
     /// Whether the privileged helper is registered and allowed. Re-read on every refresh,
     /// since the user approves it in System Settings, outside the app.
@@ -145,32 +149,46 @@ final class SystemStore {
     /// Downloads and launches the official installer, then waits for the CLI to appear.
     func install() async {
         guard status == .notInstalled || isOutdated else { return }
+        installProgress = InstallProgress(title: "Installing container", step: "")
         await performInstall()
+        installProgress = nil
     }
 
+    /// Fetches and installs the latest release, reporting each step in `installProgress`,
+    /// which the caller sets up and clears.
     private func performInstall() async {
         status = .installing
         actionOutput = []
-        busyMessage = "Finding the latest release…"
+        installProgress?.step = "Finding the latest release…"
         do {
             let release = try await ContainerInstaller.latestRelease()
-            busyMessage = "Downloading container \(release.version)…"
-            let pkg = try await ContainerInstaller.download(release)
+            let version = displayVersion(release.version)
+            installProgress?.step = "Downloading container \(version)…"
+            installProgress?.fraction = 0
+            let pkg = try await ContainerInstaller.download(release) { [weak self] fraction in
+                Task { @MainActor in
+                    // A late report mustn't turn the next step back into a download.
+                    if self?.installProgress?.fraction != nil { self?.installProgress?.fraction = fraction }
+                }
+            }
+            installProgress?.fraction = nil
             if PrivilegedHelper.status == .enabled {
-                busyMessage = "Installing container \(release.version)…"
+                installProgress?.step = "Installing container \(version)…"
                 defer { try? FileManager.default.removeItem(at: pkg) }
                 _ = try await PrivilegedHelper.installPackage(at: pkg)
                 cachedCLIVersion = nil
             } else {
-                busyMessage = "Opening the installer — complete it in the Installer window."
+                installProgress?.step = "Finish installing container \(version) in the Installer window."
                 ContainerInstaller.launchInstaller(pkg: pkg)
 
-                // Wait (bounded) for the user to finish in Installer.app.
+                // Wait (bounded) for the user to finish in Installer.app. On an update the old
+                // version already meets the minimum, so wait for the release being installed.
                 cachedCLIVersion = nil
                 for _ in 0..<120 {
                     try? await Task.sleep(for: .seconds(3))
                     cachedCLIVersion = nil
-                    if CLIRunner.isInstalled, let v = await cliVersion(), ContainerVersion.meetsMinimum(v) {
+                    if CLIRunner.isInstalled, let v = await cliVersion(), ContainerVersion.meetsMinimum(v),
+                       !ContainerVersion.isUpdate(latest: release.version, over: v) {
                         break
                     }
                 }
@@ -178,9 +196,9 @@ final class SystemStore {
         } catch is CancellationError {
             // The user dismissed the administrator prompt.
         } catch {
+            installProgress?.fraction = nil
             lastError = PresentedError(title: "Installation failed", error: error)
         }
-        busyMessage = nil
         status = .unknown
         await refresh()
     }
@@ -191,15 +209,17 @@ final class SystemStore {
     func uninstall(deletingData: Bool) async {
         guard helperStatus == .enabled, isInstalledFromPackage else { return }
         status = .stopping
-        busyMessage = "Uninstalling container…"
+        installProgress = InstallProgress(title: "Uninstalling container", step: "Stopping container services…")
         _ = try? await CLIRunner.run(["system", "stop"])
         health = nil
         do {
+            installProgress?.step = "Removing container…"
             try await PrivilegedHelper.uninstallContainer()
             for domain in ContainerDNS.resolverDomainsOnDisk() {
                 try? await PrivilegedHelper.deleteResolver(domain: domain)
             }
             if deletingData {
+                installProgress?.step = "Deleting images, containers and volumes…"
                 try await Self.deleteContainerData()
             }
         } catch is CancellationError {
@@ -207,7 +227,7 @@ final class SystemStore {
             lastError = PresentedError(title: "Couldn't uninstall container", error: error)
         }
         cachedCLIVersion = nil
-        busyMessage = nil
+        installProgress = nil
         status = .unknown
         await refresh()
     }
@@ -230,6 +250,7 @@ final class SystemStore {
         case upToDate(String)   // installed version
         case available(String)  // newer version
         case unknown(String)    // reason it couldn't be determined
+        case noneFound          // nothing newer found, installed version not confirmed
 
         var isUpdate: Bool { if case .available = self { return true }; return false }
 
@@ -272,6 +293,7 @@ final class SystemStore {
 
     private func checkAppUpdate() async -> UpdateOutcome {
         let current = AppUpdater.installedVersion
+        appUpdateNeedsDownload = false
         do {
             if let available = try await AppUpdater.shared.availableVersion() {
                 let version = displayVersion(available)
@@ -281,8 +303,24 @@ final class SystemStore {
             availableAppUpdate = nil
             return .upToDate(displayVersion(current))
         } catch {
-            return .unknown(PresentedError.describe(error))
+            return await checkAppRelease(current: current)
         }
+    }
+
+    /// Fallback for when the Sparkle feed can't be read: compares against the latest
+    /// GitHub release. Its failures aren't worth reporting either, so anything short of
+    /// a newer release reads as no update.
+    private func checkAppRelease(current: String) async -> UpdateOutcome {
+        if let release = try? await GitHub.latestRelease(repo: AppUpdater.repository),
+            ContainerVersion.isUpdate(latest: release.tagName, over: current)
+        {
+            let version = displayVersion(release.tagName)
+            availableAppUpdate = version
+            appUpdateNeedsDownload = true
+            return .available(version)
+        }
+        availableAppUpdate = nil
+        return .noneFound
     }
 
     /// Runs one automatic check per launch if the configured frequency says one is due.
@@ -303,9 +341,14 @@ final class SystemStore {
             app: nil)
     }
 
-    /// Hands over to Sparkle to download, install and relaunch.
+    /// Hands over to Sparkle to download, install and relaunch, or opens the release page
+    /// when the update was found without it.
     func installAppUpdate() {
-        AppUpdater.shared.installUpdate()
+        if appUpdateNeedsDownload {
+            NSWorkspace.shared.open(AppUpdater.releasesPage)
+        } else {
+            AppUpdater.shared.installUpdate()
+        }
     }
 
     /// Applies a container update by reinstalling the latest release. Stops services so the
@@ -313,23 +356,28 @@ final class SystemStore {
     /// afterwards only if they were running before the update.
     func applyUpdate() async {
         let wasRunning = status == .running || status == .baseEnvMissing
+        installProgress = InstallProgress(title: "Updating container", step: "")
         if wasRunning {
+            installProgress?.step = "Stopping container services…"
             _ = try? await CLIRunner.run(["system", "stop"])
             health = nil
         }
         availableUpdate = nil
         await performInstall()
         if wasRunning {
+            installProgress?.step = "Starting container services…"
             await performStart(stopFirst: false)
         }
+        installProgress = nil
     }
 
     private func presentUpdateSummary(app: UpdateOutcome, container: UpdateOutcome) {
         updateSummary = UpdateSummary(
             title: "Software Update",
             message: """
-                ContainerManager — \(summaryLine(app))
-                Apple container — \(summaryLine(container))
+                ContainerManager: \(summaryLine(app))
+
+                Apple container: \(summaryLine(container))
                 """,
             container: container.availableVersion,
             app: app.availableVersion)
@@ -337,9 +385,10 @@ final class SystemStore {
 
     private func summaryLine(_ outcome: UpdateOutcome) -> String {
         switch outcome {
-        case .upToDate(let version): "\(version) (up to date)"
-        case .available(let version): "\(version) available"
-        case .unknown(let reason): "couldn’t check — \(reason)"
+        case .upToDate(let version): "\(version) is up to date."
+        case .available(let version): "Version \(version) is available."
+        case .unknown(let reason): "Couldn’t check. \(reason)"
+        case .noneFound: "Not available."
         }
     }
 
@@ -402,4 +451,14 @@ final class SystemStore {
         }
         return raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+/// One step of an install, update or uninstall, for the progress panel.
+struct InstallProgress: Equatable {
+    /// What's being done overall, e.g. "Updating container".
+    var title: String
+    /// The current step.
+    var step: String
+    /// Download progress from 0 to 1; nil for a step whose length isn't known.
+    var fraction: Double?
 }

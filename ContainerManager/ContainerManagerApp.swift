@@ -23,6 +23,8 @@ struct ContainerManagerApp: App {
     /// Held for the app's lifetime, not a scene's: it exists to notice things while no
     /// window is open, so it can't be started from a view.
     @State private var watcher: ActivityWatcher
+    /// App-wide too: an update started from the menu bar has no window to show it in.
+    @State private var installPanel: InstallProgressPanel
 
     init() {
         let system = SystemStore()
@@ -39,6 +41,7 @@ struct ContainerManagerApp: App {
             initialValue: ActivityWatcher(
                 system: system, containers: containers, machines: machines, stacks: stacks,
                 stats: stats))
+        _installPanel = State(initialValue: InstallProgressPanel(store: system))
     }
 
     @AppStorage(AppDefaults.showMenuBarIconKey) private var showMenuBarIcon = true
@@ -96,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             center.addObserver(self, selector: #selector(windowsChanged), name: name, object: nil)
         }
         DockIcon.update()
+        PrivilegedHelper.registerByDefault()
     }
 
     // On close the window is still counted synchronously, so re-evaluate next runloop.

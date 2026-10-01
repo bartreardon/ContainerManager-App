@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import os
 import Sparkle
 
 /// ContainerManager's own updates, through Sparkle.
@@ -14,6 +15,10 @@ import Sparkle
 /// EdDSA signature, replaces the app and relaunches it.
 final class AppUpdater: NSObject {
     static let shared = AppUpdater()
+
+    /// Where releases are published, for the fallback check when the feed can't be read.
+    static let repository = "bartreardon/ContainerManager-App"
+    static let releasesPage = URL(string: "https://github.com/\(repository)/releases/latest")!
 
     /// The running app's marketing version (CFBundleShortVersionString).
     static var installedVersion: String {
@@ -26,6 +31,17 @@ final class AppUpdater: NSObject {
             "This build isn't set up to update itself (\(underlying.localizedDescription))."
         }
     }
+
+    /// A check that Sparkle couldn't complete: a missing or unreachable appcast, a
+    /// malformed feed. Nothing the user can fix, so the alert says only that; the full
+    /// error goes to the log.
+    struct CheckFailed: LocalizedError {
+        var errorDescription: String? {
+            "update information isn't available right now. Try again later."
+        }
+    }
+
+    private static let log = Logger(subsystem: "com.bartreardon.ContainerManager", category: "AppUpdater")
 
     private lazy var controller = SPUStandardUpdaterController(
         startingUpdater: false, updaterDelegate: self, userDriverDelegate: nil)
@@ -78,7 +94,12 @@ extension AppUpdater: SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
         let noUpdate = (error as NSError).domain == SUSparkleErrorDomain
             && (error as NSError).code == Int(SUError.noUpdateError.rawValue)
-        finishCheck(noUpdate ? .success(nil) : .failure(error))
+        if noUpdate {
+            finishCheck(.success(nil))
+        } else {
+            Self.log.error("Update check failed: \(String(describing: error), privacy: .public)")
+            finishCheck(.failure(CheckFailed()))
+        }
     }
 
     #if DEBUG

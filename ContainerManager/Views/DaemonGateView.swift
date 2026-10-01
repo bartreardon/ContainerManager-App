@@ -28,7 +28,7 @@ struct DaemonGateView: View {
         case .installing:
             VStack(spacing: 12) {
                 ProgressView()
-                Text(systemStore.busyMessage ?? "Installing…")
+                Text(systemStore.installProgress?.step ?? "Installing…")
                     .font(.callout)
                     .multilineTextAlignment(.center)
             }
