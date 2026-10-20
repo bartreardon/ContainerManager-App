@@ -42,6 +42,7 @@ private struct StackDetailContent: View {
     @Environment(NetworksStore.self) private var networksStore
     @Environment(StatsStore.self) private var statsStore
     @Environment(WindowRouter.self) private var router
+    @Environment(SystemStore.self) private var systemStore
     @AppStorage(AppDefaults.statsRefreshKey) private var statsSeconds = 2
     @State private var showDeleteConfirmation = false
     @State private var showIconPicker = false
@@ -49,6 +50,7 @@ private struct StackDetailContent: View {
     @State private var repairProgress = GuiProgress()
     @State private var showLog = false
     @State private var recreateCandidate: ContainerSnapshot?
+    @State private var commitRequest: CommitRequest?
     @State private var displayName: String
     @State private var icon: String
 
@@ -305,6 +307,10 @@ private struct StackDetailContent: View {
                             }
                             .disabled(service.status != .running)
                         }
+                        let supportsCommit = systemStore.serviceSupports(ContainerVersion.commit)
+                        Button("Commit to Image…") { commitRequest = CommitRequest(service) }
+                            .disabled(!supportsCommit || !ContainerCommitter.canCommit(service.status))
+                            .help(supportsCommit ? "" : ContainerCommitter.needsNewerServices)
                         Divider()
                         Button("Replace…") { serviceSheet = .replace(service) }
                         Button("Remove from Stack", role: .destructive) {
@@ -447,6 +453,7 @@ private struct StackDetailContent: View {
         .sheet(isPresented: $showLog) {
             StackLogSheet(stackName: stack.name)
         }
+        .sheet(item: $commitRequest) { CommitImageSheet(request: $0) }
         .sheet(item: $serviceSheet) { kind in
             switch kind {
             case .add:

@@ -33,11 +33,13 @@ private struct ContainerDetailContent: View {
     @Environment(ContainersStore.self) private var store
     @Environment(StatsStore.self) private var statsStore
     @Environment(WindowRouter.self) private var router
+    @Environment(SystemStore.self) private var systemStore
     @State private var mode: ContainerDetailMode = .info
     @State private var terminalSessionId = UUID()
     @State private var terminalExited = false
     @State private var showDeleteConfirmation = false
     @State private var showLogs = false
+    @State private var commitRequest: CommitRequest?
 
     private var isBusy: Bool {
         store.isBusy(container.id)
@@ -85,6 +87,7 @@ private struct ContainerDetailContent: View {
         } message: {
             Text("This permanently removes the container.")
         }
+        .sheet(item: $commitRequest) { CommitImageSheet(request: $0) }
         .sheet(isPresented: $showLogs) {
             LogsSheet(title: "\(container.id) Logs", hasBootLog: true) {
                 try await ContainerClient().logs(id: container.id)
@@ -256,12 +259,19 @@ private struct ContainerDetailContent: View {
                 Label("Logs", systemImage: "text.alignleft")
             }
             .help("View container logs")
-            // Only shown while running: Kill is its sole entry, so an empty ⋯ would be
-            // left behind once the container stops.
-            if container.status == .running {
+            // Only shown while there's something in it: Commit needs the container running
+            // or stopped, and Kill needs it running.
+            if ContainerCommitter.canCommit(container.status) {
                 Menu {
-                    Button("Kill (SIGKILL)", role: .destructive) {
-                        Task { await store.kill(id: container.id) }
+                    let supportsCommit = systemStore.serviceSupports(ContainerVersion.commit)
+                    Button("Commit to Image…") { commitRequest = CommitRequest(container) }
+                        .disabled(!supportsCommit || isBusy)
+                        .help(supportsCommit ? "" : ContainerCommitter.needsNewerServices)
+                    if container.status == .running {
+                        Divider()
+                        Button("Kill (SIGKILL)", role: .destructive) {
+                            Task { await store.kill(id: container.id) }
+                        }
                     }
                 } label: {
                     Label("More", systemImage: "ellipsis.circle")

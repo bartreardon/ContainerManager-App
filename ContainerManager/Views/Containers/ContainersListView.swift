@@ -12,11 +12,13 @@ struct ContainersListView: View {
     @Binding var selection: Set<String>
     @Environment(ContainersStore.self) private var store
     @Environment(WindowRouter.self) private var router
+    @Environment(SystemStore.self) private var systemStore
     @State private var showCreateSheet = false
     @State private var deleteCandidates: Set<String> = []
     @State private var searchText = ""
     @State private var exportStatus: String?
     @State private var recreateCandidate: String?
+    @State private var commitRequest: CommitRequest?
     @SceneStorage("containerCollapsedGroups") private var collapsedGroups = ""
 
     private var containers: [ContainerSnapshot] {
@@ -103,6 +105,7 @@ struct ContainersListView: View {
         .sheet(isPresented: $showCreateSheet) {
             ContainerCreateSheet()
         }
+        .sheet(item: $commitRequest) { CommitImageSheet(request: $0) }
         .confirmationDialog(
             deleteCandidates.count > 1
                 ? "Delete \(deleteCandidates.count) containers?"
@@ -199,7 +202,13 @@ struct ContainersListView: View {
                 Button("Open in Terminal.app") { openInTerminalApp(id) }
             }
             Button(ids.count > 1 ? "Copy Names" : "Copy Name") { Pasteboard.copy(ids.sorted()) }
-            if ids.count == 1, let id = ids.first {
+            if ids.count == 1, let id = ids.first, let container = store.container(withId: id) {
+                // `container commit` needs 1.6 services and a running or stopped container.
+                let supportsCommit = systemStore.serviceSupports(ContainerVersion.commit)
+                Button("Commit to Image…") { commitRequest = CommitRequest(container) }
+                    .disabled(
+                        !supportsCommit || !ContainerCommitter.canCommit(container.status) || store.isBusy(id))
+                    .help(supportsCommit ? "" : ContainerCommitter.needsNewerServices)
                 Button("Export Filesystem…") { export(id) }
                     .disabled(exportStatus != nil)
             }

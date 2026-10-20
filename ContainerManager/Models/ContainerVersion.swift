@@ -42,6 +42,9 @@ enum ContainerVersion {
     /// accepts the account but re-derives /home/<user>.
     static let machineHome = (1, 6, 0)
 
+    /// Services version with `container commit`, behind Commit to Image….
+    static let commit = (1, 6, 0)
+
     /// True when the version in `string` is at least `version`. False if unparseable.
     static func atLeast(_ version: (Int, Int, Int), _ string: String) -> Bool {
         guard let v = parse(string) else { return false }
