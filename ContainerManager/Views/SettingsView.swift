@@ -465,6 +465,15 @@ private struct ServiceDiagnostics: View {
         return service != linked
     }
 
+    /// Supported services older than the client libraries: everything works except
+    /// what's newer, so that's a note rather than the mismatch warning.
+    private var servicesOlderButSupported: Bool {
+        guard let service = ContainerVersion.parse(health.apiServerVersion),
+            let linked = ContainerVersion.parse(ContainerVersion.linkedLibrary)
+        else { return false }
+        return service < linked && ContainerVersion.meetsMinimum(health.apiServerVersion)
+    }
+
     /// "macOS 27.0 (26A428) · 10 CPUs", from "Version 27.0 (Build 26A428)".
     private var host: String {
         let os = ProcessInfo.processInfo.operatingSystemVersionString
@@ -498,7 +507,14 @@ private struct ServiceDiagnostics: View {
                 .textSelection(.enabled)
         }
         LabeledContent("Client libraries", value: ContainerVersion.linkedLibrary)
-        if versionsDiffer {
+        if servicesOlderButSupported {
+            Label(
+                "container \(serviceVersion) is supported. Some features need \(ContainerVersion.linkedLibrary) and are hidden until you update.",
+                systemImage: "info.circle"
+            )
+            .foregroundStyle(.secondary)
+            .font(.caption)
+        } else if versionsDiffer {
             Label(
                 "The services and ContainerManager's client libraries differ. Update whichever is older so they match.",
                 systemImage: "exclamationmark.triangle.fill"

@@ -23,21 +23,51 @@ enum ContainerInstaller {
 
         var errorDescription: String? {
             switch self {
-            case .noPackage: "No signed installer package was found in the latest release."
+            case .noPackage: "No release with a signed installer package was found."
             case .badResponse: "Unexpected response from GitHub."
             }
         }
     }
 
-    /// Resolves the latest release and its signed `.pkg` asset.
+    /// What the releases offer: the newest one that can be installed, and a newer
+    /// release, if any, that has no signed package to install.
+    struct Lookup {
+        let signed: Release?
+        let unsignedNewer: String?
+    }
+
+    /// Resolves the newest release with a signed `.pkg` asset.
     static func latestRelease() async throws -> Release {
-        let release = try await GitHub.latestRelease(repo: "apple/container")
-        let signed = release.assets.first { $0.name == "container-installer-signed.pkg" }
-            ?? release.assets.first { $0.name.hasSuffix("installer-signed.pkg") }
-        guard let asset = signed else {
+        guard let release = try await lookup().signed else {
             throw InstallerError.noPackage
         }
-        return Release(version: release.tagName, pkgURL: asset.browserDownloadURL)
+        return release
+    }
+
+    static func lookup() async throws -> Lookup {
+        newestSigned(try await GitHub.releases(repo: "apple/container"))
+    }
+
+    /// Picks the newest published release with a signed package. Apple has published a
+    /// release with only the unsigned one (1.6.0), which can't be checked before it's
+    /// installed; that release is reported in `unsignedNewer` and skipped.
+    static func newestSigned(_ releases: [GitHub.Release]) -> Lookup {
+        let published = releases
+            .filter { !$0.draft && !$0.prerelease }
+            .compactMap { release in ContainerVersion.parse(release.tagName).map { (release, $0) } }
+            .sorted { $0.1 > $1.1 }
+        let signed = published.lazy.compactMap { release, _ in
+            signedPackage(in: release).map { Release(version: release.tagName, pkgURL: $0) }
+        }.first
+        // `published` is newest first, so a newest release that isn't the signed one is newer.
+        let newest = published.first?.0.tagName
+        return Lookup(signed: signed, unsignedNewer: newest == signed?.version ? nil : newest)
+    }
+
+    private static func signedPackage(in release: GitHub.Release) -> URL? {
+        let asset = release.assets.first { $0.name == "container-installer-signed.pkg" }
+            ?? release.assets.first { $0.name.hasSuffix("installer-signed.pkg") }
+        return asset?.browserDownloadURL
     }
 
     /// Downloads the package to a temporary `.pkg` file, calling `progress` with the

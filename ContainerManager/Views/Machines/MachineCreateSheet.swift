@@ -9,6 +9,7 @@ import SwiftUI
 struct MachineCreateSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(MachinesStore.self) private var store
+    @Environment(SystemStore.self) private var systemStore
 
     @State private var name = ""
     @State private var image = "alpine:3.22"
@@ -72,7 +73,10 @@ struct MachineCreateSheet: View {
                     TextField("User", text: $user, prompt: Text(NSUserName()))
                     TextField("UID", value: $uid, format: .number.grouping(.never), prompt: Text(String(getuid())))
                     TextField("GID", value: $gid, format: .number.grouping(.never), prompt: Text(String(getgid())))
-                    TextField("Home", text: $home, prompt: Text("/home/\(user.isEmpty ? NSUserName() : user)"))
+                    // container 1.5 accepts the account but always uses /home/<user>.
+                    if supportsHome {
+                        TextField("Home", text: $home, prompt: Text("/home/\(user.isEmpty ? NSUserName() : user)"))
+                    }
                 } header: {
                     Text("Account")
                 } footer: {
@@ -131,6 +135,10 @@ struct MachineCreateSheet: View {
         .onDisappear { task?.cancel() }
     }
 
+    private var supportsHome: Bool {
+        systemStore.serviceSupports(ContainerVersion.machineHome)
+    }
+
     private func create() async {
         isCreating = true
         error = nil
@@ -143,7 +151,7 @@ struct MachineCreateSheet: View {
             user: user.trimmingCharacters(in: .whitespaces),
             uid: uid,
             gid: gid,
-            home: home.trimmingCharacters(in: .whitespaces),
+            home: supportsHome ? home.trimmingCharacters(in: .whitespaces) : "",
             setAsDefault: setAsDefault,
             bootAfterCreate: bootAfterCreate
         )

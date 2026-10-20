@@ -33,7 +33,7 @@ Full guides live in the **[wiki](https://github.com/bartreardon/ContainerManager
 
 - A Mac with **Apple silicon**.
 - **macOS 26** (the `container` tool relies on its virtualization/networking features).
-- **`container` 1.6.0 or later** — the version these client libraries are built and verified against. Older versions fail obscurely over XPC, so the app detects them and offers to update.
+- **`container` 1.5.0 or later.** The client libraries are built against 1.6.0 and also work with 1.5 services; features that need 1.6 (such as a custom home folder for a machine account) are hidden on 1.5. Older versions fail obscurely over XPC, so the app detects them and offers to update.
 - The **`container` tool installed** and its services started:
   ```bash
   container system start
@@ -76,4 +76,4 @@ A container machine boots the image's init system at `/sbin/init`. Minimal image
 
 ## Status
 
-Built against `apple/container` 1.6.0, which is also the minimum supported. The `container` project still changes its API between minor releases, so expect to track upstream.
+Built against `apple/container` 1.6.0; the minimum supported is 1.5.0. The `container` project still changes its API between minor releases, so expect to track upstream.

@@ -30,9 +30,17 @@ struct ContainerVersionTests {
     }
 
     @Test("Older releases are outdated, newer ones pass", arguments: [
-        ("1.4.1", false), ("1.5.0", false), ("1.5.9", false), ("1.6.0", true), ("1.6.1", true), ("2.0.0", true),
+        ("1.4.1", false), ("1.4.9", false), ("1.5.0", true), ("1.6.0", true), ("1.6.1", true), ("2.0.0", true),
     ])
     func minimum(version: String, meets: Bool) {
         #expect(ContainerVersion.meetsMinimum(version) == meets)
+    }
+
+    @Test("Feature gates compare against the services' version", arguments: [
+        ("1.5.0", false), ("container-apiserver version 1.5.0 (build: release)", false),
+        ("1.6.0", true), ("1.7.2", true), ("unspecified", false),
+    ])
+    func atLeast(version: String, supported: Bool) {
+        #expect(ContainerVersion.atLeast(ContainerVersion.machineHome, version) == supported)
     }
 }
