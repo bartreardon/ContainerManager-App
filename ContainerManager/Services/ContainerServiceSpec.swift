@@ -24,7 +24,12 @@ enum ContainerServiceSpec {
             volumes: configuration.mounts.compactMap(mountSpec),
             publishPorts: configuration.publishedPorts.map(portSpec),
             command: commandLine(configuration.initProcess),
-            platform: "\(configuration.platform.os)/\(configuration.platform.architecture)"
+            platform: "\(configuration.platform.os)/\(configuration.platform.architecture)",
+            // Its own key is implied; only the names it was given on top of that.
+            aliases: StackDNS.names(
+                fromAliases: configuration.networks.first?.options.aliases ?? [],
+                searchDomains: configuration.dns?.searchDomains ?? []
+            ).filter { $0 != key }
         )
     }
 

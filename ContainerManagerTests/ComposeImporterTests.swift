@@ -372,6 +372,73 @@ struct ComposeImporterTests {
         #expect(try service(document, "web").platform == expected)
     }
 
+    // MARK: Networks
+
+    @Test("networks.<name>.aliases become the service's aliases, merged across networks")
+    func networkAliases() throws {
+        let document = try importing(
+            """
+            services:
+              db:
+                image: postgres
+                networks:
+                  backend:
+                    aliases: [database, pg]
+                  frontend:
+                    aliases:
+                      - pg
+                      - sql
+            """)
+        #expect(try service(document, "db").aliases == ["database", "pg", "sql"])
+        #expect(document.notes?.contains("db.networks:") != true)
+    }
+
+    @Test("networks as a list imports cleanly, with no aliases")
+    func networkList() throws {
+        let document = try importing(
+            """
+            services:
+              web:
+                image: nginx
+                networks: [frontend, backend]
+            """)
+        #expect(try service(document, "web").aliases == nil)
+        #expect(ComposeImporter.caveats(in: document) == nil)
+    }
+
+    @Test("Per-network settings other than aliases are reported")
+    func networkSettingsAreReported() throws {
+        let document = try importing(
+            """
+            services:
+              db:
+                image: postgres
+                networks:
+                  backend:
+                    aliases: [database]
+                    ipv4_address: 172.16.238.10
+            """)
+        #expect(try service(document, "db").aliases == ["database"])
+        let notes = try #require(document.notes)
+        #expect(notes.contains("db.networks.backend.ipv4_address:"))
+        #expect(!notes.contains("db.networks.backend.aliases"))
+    }
+
+    @Test("Aliases survive into the stack plan")
+    func aliasesReachThePlan() throws {
+        let document = try importing(
+            """
+            services:
+              db:
+                image: postgres
+                networks:
+                  default:
+                    aliases: [database]
+            """)
+        let plan = try document.toTemplateDef().build(["name": "shop"])
+        #expect(plan.services.first?.aliases == ["database"])
+    }
+
     // MARK: Rejections and losses
 
     @Test("A file that isn't compose is rejected")

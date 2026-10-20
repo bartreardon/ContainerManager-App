@@ -39,7 +39,12 @@ enum ContainerLauncher {
         // ArgumentParser-backed flags must come from parse([]); bare init() traps on read.
         var management = try Flags.Management.parse([])
         management.name = name
-        management.networks = spec.network == NetworkClient.defaultNetworkName ? [] : [spec.network]
+        // `--network name,alias=…` form. The client only qualifies aliases without a dot,
+        // so callers pass them fully qualified.
+        let attachment = ([spec.network] + spec.networkAliases.map { "alias=\($0)" }).joined(separator: ",")
+        management.networks =
+            spec.network == NetworkClient.defaultNetworkName && spec.networkAliases.isEmpty ? [] : [attachment]
+        management.dns.searchDomains = spec.dnsSearchDomains
         management.publishPorts = spec.publishPorts
         management.volumes = spec.volumes
         management.labels = spec.labels

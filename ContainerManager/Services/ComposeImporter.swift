@@ -11,7 +11,8 @@ import Yams
 ///
 /// Supported per service: `image` (required), `environment` (map or list),
 /// `ports` (string forms), `volumes` (string forms; relative host paths are
-/// resolved against the compose file's folder), `depends_on` (start order).
+/// resolved against the compose file's folder), `depends_on` (start order),
+/// `networks.<name>.aliases` (extra names on the one stack network).
 /// References to another service by name in env values (`db` or `db:3306`) are
 /// rewritten to the runtime `${IP:key}` token our orchestrator substitutes.
 /// Everything else is skipped and collected into `document.notes` so the import
@@ -39,7 +40,7 @@ enum ComposeImporter {
 
     static let supportedServiceKeys: Set<String> = [
         "image", "environment", "ports", "volumes", "depends_on", "command",
-        "platform", "mem_limit", "cpus",
+        "platform", "mem_limit", "cpus", "networks",
     ]
 
     /// Memory from `mem_limit` (compose v2) or `deploy.resources.limits.memory` (v3),
@@ -139,6 +140,11 @@ enum ComposeImporter {
             dependencies[key] = dependsOn(service["depends_on"])
 
             let command = commandString(service["command"])
+            let (aliases, networkSettings) = networkAliases(service["networks"])
+            for setting in networkSettings {
+                ignored["\(key).networks.\(setting):"] =
+                    "only aliases are read; every service shares one stack network"
+            }
 
             specs.append(
                 StackTemplateDocument.Service(
@@ -151,7 +157,8 @@ enum ComposeImporter {
                     command: command.isEmpty ? nil : command,
                     platform: normalizedPlatform(service["platform"]),
                     cpus: cpuLimit(service),
-                    memory: memoryLimit(service)
+                    memory: memoryLimit(service),
+                    aliases: aliases.isEmpty ? nil : aliases
                 ))
         }
 
@@ -298,8 +305,8 @@ enum ComposeImporter {
             "health probes aren't run; dependants wait for the port to accept connections instead"
         case "cap_add", "cap_drop", "privileged", "security_opt":
             "capability and privilege changes aren't supported"
-        case "networks", "network_mode", "links", "dns", "extra_hosts":
-            "every service shares one stack network and reaches the others by IP"
+        case "network_mode", "links", "dns", "extra_hosts":
+            "every service shares one stack network and reaches the others by IP, or by name when local DNS is set up"
         case "profiles":
             "profiles aren't evaluated — all services were imported"
         case "env_file":
@@ -447,6 +454,23 @@ enum ComposeImporter {
         if let list = raw as? [Any] { return list.map { "\($0)" } }
         if let map = raw as? [String: Any] { return Array(map.keys) }
         return []
+    }
+
+    /// Aliases from a service's `networks`, merged across networks since a stack has
+    /// only one, and the other per-network settings (`backend.ipv4_address`) that
+    /// can't be carried over. The list form names networks and nothing else.
+    private static func networkAliases(_ raw: Any?) -> (aliases: [String], ignored: [String]) {
+        guard let map = raw as? [String: Any] else { return ([], []) }
+        var aliases: [String] = []
+        var ignored: [String] = []
+        for (network, settings) in map.sorted(by: { $0.key < $1.key }) {
+            guard let settings = settings as? [String: Any] else { continue }
+            for alias in stringList(settings["aliases"]) where !aliases.contains(alias) {
+                aliases.append(alias)
+            }
+            ignored += settings.keys.filter { $0 != "aliases" }.sorted().map { "\(network).\($0)" }
+        }
+        return (aliases, ignored)
     }
 
     /// Rewrites `VAR=db` / `VAR=db:3306` (and `…@db:…` URL hosts) to `${IP:db}` tokens.

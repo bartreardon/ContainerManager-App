@@ -120,6 +120,28 @@ struct ContainerRecreationTests {
         #expect(spec.network == NetworkClient.defaultNetworkName)
     }
 
+    @Test("A stack service's DNS aliases and search domains carry over")
+    func aliases() throws {
+        let json = Self.configuration
+            .replacingOccurrences(
+                of: "\"hostname\": \"shop-db\", \"mtu\": 1280}",
+                with: "\"hostname\": \"shop-db.test.\", \"mtu\": 1280, \"aliases\": [\"db.shop.test\", \"mysql.shop.test\"]}")
+            .replacingOccurrences(
+                of: "\"rosetta\": true",
+                with: "\"rosetta\": true, \"dns\": {\"nameservers\": [], \"domain\": \"test\", \"searchDomains\": [\"shop.test\", \"test\"], \"options\": []}")
+        let spec = ContainerRecreation.plan(for: try Self.container(json), autoRemove: false).spec
+        #expect(spec.networkAliases == ["db.shop.test", "mysql.shop.test"])
+        #expect(spec.dnsSearchDomains == ["shop.test", "test"])
+        #expect(ContainerRecreation.summary(spec).contains("aliases: db.shop.test, mysql.shop.test"))
+    }
+
+    @Test("A container without aliases gets none, and its search list is left alone")
+    func noAliases() throws {
+        let spec = ContainerRecreation.plan(for: try Self.container(), autoRemove: false).spec
+        #expect(spec.networkAliases.isEmpty)
+        #expect(spec.dnsSearchDomains.isEmpty)
+    }
+
     @Test("The confirmation says what's kept, what's lost, and whether it restarts")
     func confirmation() throws {
         let running = ContainerRecreation.confirmationMessage(for: try Self.container())

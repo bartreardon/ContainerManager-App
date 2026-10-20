@@ -25,6 +25,9 @@ struct StackServiceSpec: Identifiable {
     /// Worth setting for anything that does real work: the default is modest, and a
     /// service that quietly exceeds it stops answering rather than failing loudly.
     var memory: String? = nil
+    /// Extra names the service answers to inside the stack, besides its key — Compose's
+    /// `networks.<name>.aliases`. Bare names; see `StackDNS`.
+    var aliases: [String] = []
 
     var id: String { key }
 }

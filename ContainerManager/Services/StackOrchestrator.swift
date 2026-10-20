@@ -4,12 +4,14 @@
 //
 
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerResource
 import ContainerizationExtras
 import Foundation
 
 /// Stands up a multi-container stack: creates the network, then creates and starts
 /// each service in order, injecting earlier services' IPs into later services' env.
+/// With a default DNS domain, each service can also be reached by name; see `StackDNS`.
 enum StackOrchestrator {
     /// Runs the plan. `onStep` reports high-level progress lines; `progress` carries
     /// image fetch/unpack progress. Returns the web URL if the stack exposes one.
@@ -37,6 +39,10 @@ enum StackOrchestrator {
 
         // Only dependencies are worth waiting for; see referencedRoles.
         let awaited = referencedRoles(in: spec)
+        let defaultDomain = await defaultDNSDomain()
+        // Every key is claimed up front, so an earlier service's alias can't take a
+        // later service's name.
+        var taken = Set(spec.services.map(\.key))
         var ips: [String: String] = [:]
         for service in spec.services {
             let containerName = "\(spec.name)-\(service.key)"
@@ -52,6 +58,11 @@ enum StackOrchestrator {
                 labels.append("\(StackLabels.url)=http://localhost:\(port)")
             }
 
+            let dns = StackDNS.settings(
+                stack: spec.name, key: service.key, extraNames: service.aliases,
+                taken: taken.subtracting([service.key]), defaultDomain: defaultDomain)
+            taken.formUnion(service.aliases)
+
             let containerSpec = ContainerCreateSpec(
                 name: containerName,
                 image: service.image,
@@ -65,7 +76,9 @@ enum StackOrchestrator {
                 labels: labels,
                 platform: service.platform,
                 autoRemove: false,
-                startAfterCreate: false
+                startAfterCreate: false,
+                networkAliases: dns.aliases,
+                dnsSearchDomains: dns.searchDomains
             )
 
             let id = try await ContainerLauncher.create(spec: containerSpec, progress: progress, start: true)
@@ -166,6 +179,11 @@ enum StackOrchestrator {
         let config = try NetworkConfiguration(
             name: name, mode: .nat, labels: labels, plugin: "container-network-vmnet")
         _ = try await client.create(configuration: config)
+    }
+
+    /// The default domain new containers are registered under, if one is configured.
+    nonisolated static func defaultDNSDomain() async -> String? {
+        (try? await ConfigurationLoader.load())?.dns.domain
     }
 
     nonisolated static func resolve(_ value: String, ips: [String: String]) -> String {

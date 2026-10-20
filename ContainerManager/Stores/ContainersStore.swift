@@ -31,6 +31,10 @@ struct ContainerCreateSpec {
     var platform: String? = nil
     var autoRemove: Bool
     var startAfterCreate: Bool
+    /// Extra DNS names for the container on `network`, fully qualified (`db.shop.test`).
+    var networkAliases: [String] = []
+    /// Replaces the resolver's search list, so a bare name can resolve to an alias.
+    var dnsSearchDomains: [String] = []
     /// Settings the create sheets don't offer, used when re-creating a container exactly.
     var advanced = ContainerAdvancedSettings()
 }

@@ -330,6 +330,20 @@ final class StacksStore {
         }
         let env = service.env.map { StackOrchestrator.resolve($0, ips: ips) }
 
+        // The names the rest of the stack answers to stay theirs; the runtime would
+        // refuse the whole container over a clash.
+        var taken = Set<String>()
+        for member in stack(named: stackName)?.services ?? [] where member.id != replacing?.id {
+            taken.insert(Self.role(of: member))
+            taken.formUnion(
+                StackDNS.names(
+                    fromAliases: member.configuration.networks.first?.options.aliases ?? [],
+                    searchDomains: member.configuration.dns?.searchDomains ?? []))
+        }
+        let dns = StackDNS.settings(
+            stack: stackName, key: service.key, extraNames: service.aliases, taken: taken,
+            defaultDomain: await StackOrchestrator.defaultDNSDomain())
+
         if let replacing {
             let client = ContainerClient()
             try? await client.stop(id: replacing.id)
@@ -349,7 +363,9 @@ final class StacksStore {
             labels: labels,
             platform: service.platform,
             autoRemove: false,
-            startAfterCreate: false
+            startAfterCreate: false,
+            networkAliases: dns.aliases,
+            dnsSearchDomains: dns.searchDomains
         )
         try await ContainerLauncher.create(spec: spec, progress: progress, start: true)
         StackLog.append(

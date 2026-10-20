@@ -86,6 +86,9 @@ enum ContainerRecreation {
             platform: "\(configuration.platform.os)/\(configuration.platform.architecture)",
             autoRemove: autoRemove,
             startAfterCreate: false,
+            // A stack service's DNS names, so the rest of the stack still reaches it by name.
+            networkAliases: configuration.networks.first?.options.aliases ?? [],
+            dnsSearchDomains: configuration.dns?.searchDomains ?? [],
             advanced: ContainerAdvancedSettings(
                 entrypoint: process.executable.isEmpty ? nil : process.executable,
                 arguments: process.arguments,
@@ -173,6 +176,7 @@ enum ContainerRecreation {
         if !spec.publishPorts.isEmpty { lines.append("ports: \(spec.publishPorts.joined(separator: ", "))") }
         if !spec.volumes.isEmpty { lines.append("volumes: \(spec.volumes.joined(separator: ", "))") }
         lines.append("network: \(spec.network)")
+        if !spec.networkAliases.isEmpty { lines.append("aliases: \(spec.networkAliases.joined(separator: ", "))") }
         if !spec.env.isEmpty { lines.append("environment: \(spec.env.joined(separator: " "))") }
         return lines.joined(separator: "\n")
     }

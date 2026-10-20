@@ -39,6 +39,8 @@ struct StackTemplateDocument: Codable {
         var cpus: Int64?
         /// Memory, e.g. "4g"; omit for the runtime's default.
         var memory: String?
+        /// Extra names other services can reach this one by, besides its key.
+        var aliases: [String]?
     }
 
     struct Web: Codable {
@@ -236,7 +238,8 @@ struct StackTemplateDocument: Codable {
                 command: try substitute(service.command ?? "", values: values),
                 platform: service.platform,
                 cpus: service.cpus,
-                memory: service.memory
+                memory: service.memory,
+                aliases: service.aliases ?? []
             )
         }
     }
