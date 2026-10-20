@@ -26,10 +26,11 @@ struct MachineBootFailure: LocalizedError {
 }
 
 enum MachineBootstrapper {
-    /// Boots a machine and, on its first ever boot, runs the in-VM init binary to
-    /// create the host user inside the machine. Mirrors the container CLI's internal
-    /// `bootMachine` helper (non-interactive path). On failure during user setup the
-    /// machine is stopped so it isn't left half-initialized.
+    /// Boots a machine and runs user setup inside it. Mirrors the container CLI's
+    /// internal `bootMachine` helper: since 1.6 setup runs on every boot (it's
+    /// idempotent) and is the shell script `MachineUserSetup.script`, not the in-VM
+    /// init binary's old `-u` flag. On failure during user setup the machine is
+    /// stopped so it isn't left half-initialized.
     @discardableResult
     static func bootAndInitialize(id: String) async throws -> MachineSnapshot {
         let client = MachineClient()
@@ -52,49 +53,47 @@ enum MachineBootstrapper {
             )
         }
 
-        if !snapshot.initialized {
-            do {
-                guard let containerId = snapshot.containerId else {
-                    throw ContainerizationError(
-                        .invalidState,
-                        message: "container machine is running but has no container ID"
-                    )
-                }
-
-                let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
-                defer { try? io.close() }
-
-                let processConfig = ProcessConfiguration(
-                    executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
-                    arguments: ["-u"],
-                    environment: snapshot.configuration.processEnvironment,
-                    terminal: false
-                )
-
-                let process = try await ContainerClient().createProcess(
-                    containerId: containerId,
-                    processId: UUID().uuidString.lowercased(),
-                    configuration: processConfig,
-                    stdio: io.stdio
-                )
-
-                try await process.start()
-                try io.closeAfterStart()
-                let exitCode = try await process.wait()
-                guard exitCode == 0 else {
-                    throw ContainerizationError(
-                        .invalidState,
-                        message: "container machine failed to create user"
-                    )
-                }
-            } catch {
-                let tail = await tailLogs(id: id)
-                try? await client.stop(id: snapshot.id)
-                throw MachineBootFailure(
-                    underlying: PresentedError.describe(error),
-                    logTail: tail
+        do {
+            guard let containerId = snapshot.containerId else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "container machine is running but has no container ID"
                 )
             }
+
+            let io = try ProcessIO.create(tty: false, interactive: false, detach: true)
+            defer { try? io.close() }
+
+            let processConfig = ProcessConfiguration(
+                executable: "/bin/sh",
+                arguments: ["-c", MachineUserSetup.script],
+                environment: snapshot.configuration.processEnvironment,
+                terminal: false
+            )
+
+            let process = try await ContainerClient().createProcess(
+                containerId: containerId,
+                processId: UUID().uuidString.lowercased(),
+                configuration: processConfig,
+                stdio: io.stdio
+            )
+
+            try await process.start()
+            try io.closeAfterStart()
+            let exitCode = try await process.wait()
+            guard exitCode == 0 else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "container machine failed to create user"
+                )
+            }
+        } catch {
+            let tail = await tailLogs(id: id)
+            try? await client.stop(id: snapshot.id)
+            throw MachineBootFailure(
+                underlying: PresentedError.describe(error),
+                logTail: tail
+            )
         }
 
         // Images without /sbin/init "boot" successfully and then die immediately.

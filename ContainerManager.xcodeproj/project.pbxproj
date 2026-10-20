@@ -662,7 +662,7 @@
 			repositoryURL = "https://github.com/apple/container.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.4.1;
+				version = 1.6.0;
 			};
 		};
 		AC0000000000000000000202 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {

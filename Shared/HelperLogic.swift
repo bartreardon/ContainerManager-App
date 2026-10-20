@@ -30,7 +30,7 @@ nonisolated enum ResolverDomain {
 
     static func fileName(for domain: String) -> String { filePrefix + domain }
 
-    /// Matches what `container system dns create` writes (container 1.4.1), for the
+    /// Matches what `container system dns create` writes (container 1.6.0), for the
     /// plain case without `--localhost`.
     static func contents(for domain: String) -> String {
         """

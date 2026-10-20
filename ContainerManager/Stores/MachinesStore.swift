@@ -19,6 +19,12 @@ struct MachineCreateSpec {
     var cpus: Int
     var memory: String
     var homeMount: MachineConfig.HomeMountOption
+    /// The in-machine account (container 1.6+). Empty or nil fields default to the
+    /// host user's name, uid and gid, and /home/<user>.
+    var user: String = ""
+    var uid: UInt32?
+    var gid: UInt32?
+    var home: String = ""
     var setAsDefault: Bool
     var bootAfterCreate: Bool
 }
@@ -113,11 +119,20 @@ final class MachinesStore {
                 message: "“\(id)” isn’t a valid machine name — use letters, digits, dots, dashes and underscores.")
         }
 
+        var user = Flags.MachineUser()
+        user.user = spec.user.isEmpty ? nil : spec.user
+        user.uid = spec.uid
+        user.gid = spec.gid
+        user.home = spec.home.isEmpty ? nil : spec.home
+
         let client = MachineClient()
-        let (config, resources) = try await MachineClient.machineConfigFromFlags(
+        // 1.6 folded the image's machine resources into the configuration, and added
+        // the account to create inside the machine.
+        let config = try await MachineClient.machineConfigFromFlags(
             id: id,
             image: spec.image,
             management: Flags.MachineManagement.parse([]),
+            user: user,
             registry: Flags.Registry(scheme: "https"),
             imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
             containerSystemConfig: systemConfig,
@@ -125,7 +140,7 @@ final class MachinesStore {
         )
 
         progress.setPhase("Creating machine")
-        try await client.create(configuration: config, resources: resources, bootConfig: bootConfig)
+        try await client.create(configuration: config, bootConfig: bootConfig)
 
         if spec.setAsDefault {
             try await client.setDefault(id: id)

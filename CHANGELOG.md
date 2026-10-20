@@ -4,7 +4,7 @@ All notable changes to ContainerManager.
 
 ## Unreleased
 
-Moves to Apple's container 1.4.1, which fixes a number of security issues in image loading and unpacking, and picks up two of its new capabilities.
+Moves to Apple's container 1.6.0. Along the way, 1.4.1 fixed a number of security issues in image loading and unpacking, and the app picks up new capabilities from 1.4.1 and 1.6.0.
 
 ### New
 - **ContainerManager updates itself.** **Update…** in Settings ▸ Updates, or **Update ContainerManager…** in the update alert, downloads the new version, checks its signature, and replaces and relaunches the app. It no longer just opens the release page. Checks still follow **Check automatically**.
@@ -12,13 +12,15 @@ Moves to Apple's container 1.4.1, which fixes a number of security issues in ima
 - **Uninstall container.** With the helper enabled, Settings ▸ Container Tool ▸ **Uninstall container…** stops the services and removes the tool and its local DNS entries. You can keep your images, containers, volumes and machines, or delete them too.
 - **Reclaim unused space from a running container.** Right-click a running container (or a stack service) ▸ **Reclaim Unused Space**. Files deleted inside a container don't shrink its disk image on the Mac; this hands that space back. It covers the container's own filesystem and any writable named volumes, so it's most worthwhile on a database that has churned through data. It's `container clean` from 1.4.1, and only works while the container is running.
 - **Re-create a container onto the current version of container.** Each container keeps the in-VM agent it was created with, and ones created before container 1.4.1 can't reclaim space. The app recognises them, and their menu offers **Re-create to Reclaim Space…** instead. It rebuilds the container from its own settings: name, image, entrypoint and arguments, environment, ports (including UDP and ranges), volumes, folders shared from your Mac, tmpfs, labels, network, CPU and memory. It then starts it again if it was running. Named volumes keep their data; the confirmation says anything that can't be carried over, and offers to export the filesystem first. If the image can't be fetched, nothing is removed. For a stack service, services that depend on it are updated with its new address. If Reclaim fails on a container the app couldn't identify, the alert offers the same re-create.
+- **Choose the account inside a new machine.** New Machine has an **Account** section for the user name, UID, GID and home folder created inside the machine. Leave them blank to match your Mac account, as before. This is `container machine create --user/--uid/--gid/--home` from 1.6.0.
 - **Service diagnostics in Settings.** A new **Diagnostics** section in Settings shows the services' version, build and commit, the client library version ContainerManager was built with, the host, the data, install and log folders (each with a Show in Finder button), and container and image counts. It's the same information as `container system status`. **Copy Diagnostics** puts it all on the clipboard for a bug report. If the services and client libraries differ, which is the usual cause of obscure errors, a warning says so.
 
 ### Changed
-- **Built against container 1.4.1** (was 1.2.1).
-- **The minimum supported container version is now 1.4.1**, up from 1.2.0. The app's updater was already offering 1.4.1, and 1.2.1 client libraries talking to newer services is exactly the mismatch the app warns about. Older installs get the usual prompt to update.
+- **Built against container 1.6.0** (was 1.2.1).
+- **The minimum supported container version is now 1.6.0**, up from 1.2.0. 1.2.1 client libraries talking to newer services is exactly the mismatch the app warns about, and 1.6.0 changed how machines are created. Older installs get the usual prompt to update.
+- **Machine user setup runs on every boot.** container 1.6.0 replaced the one-time `init -u` step with an idempotent setup script, so booting a machine from the app now does what `container machine boot` does. On 1.6 the old step would have booted a second init instead of creating your account.
 - **Registries are always reached over HTTPS.** container 1.3.0 removed the `auto` scheme, which quietly used plain HTTP for `localhost` and private-network registries. Pulling from a local registry that only speaks HTTP now fails.
-- The sidebar shows the container version as a plain number (e.g. `1.4.1`).
+- The sidebar shows the container version as a plain number (e.g. `1.6.0`).
 - **Turning off local DNS removes the resolver entry** when the helper is enabled, instead of leaving an inert file in `/etc/resolver`.
 - **Local DNS domains are lowercase letters, digits and hyphens**, with each label up to 63 characters. What you type is lowercased.
 - **Installing, updating and uninstalling container show their progress.** A small window shows each step: stopping the services, downloading (with a progress bar), installing, and starting them again.

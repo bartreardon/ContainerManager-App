@@ -21,6 +21,10 @@ struct MachineCreateSheet: View {
     }
     @State private var memory = MachineConfig.defaultMemory.formatted
     @State private var homeMount: MachineConfig.HomeMountOption = MachineConfig.defaultHomeMount
+    @State private var user = ""
+    @State private var uid: UInt32?
+    @State private var gid: UInt32?
+    @State private var home = ""
     @State private var setAsDefault = false
     @State private var bootAfterCreate = true
 
@@ -63,6 +67,18 @@ struct MachineCreateSheet: View {
                         Text("Read Only").tag(MachineConfig.HomeMountOption.ro)
                         Text("Not Mounted").tag(MachineConfig.HomeMountOption.none)
                     }
+                }
+                Section {
+                    TextField("User", text: $user, prompt: Text(NSUserName()))
+                    TextField("UID", value: $uid, format: .number.grouping(.never), prompt: Text(String(getuid())))
+                    TextField("GID", value: $gid, format: .number.grouping(.never), prompt: Text(String(getgid())))
+                    TextField("Home", text: $home, prompt: Text("/home/\(user.isEmpty ? NSUserName() : user)"))
+                } header: {
+                    Text("Account")
+                } footer: {
+                    Text("The account created inside the machine. Leave blank to match your Mac account.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section {
                     Toggle("Set as default machine", isOn: $setAsDefault)
@@ -124,6 +140,10 @@ struct MachineCreateSheet: View {
             cpus: cpus,
             memory: memory,
             homeMount: homeMount,
+            user: user.trimmingCharacters(in: .whitespaces),
+            uid: uid,
+            gid: gid,
+            home: home.trimmingCharacters(in: .whitespaces),
             setAsDefault: setAsDefault,
             bootAfterCreate: bootAfterCreate
         )

@@ -30,7 +30,7 @@ struct ContainerVersionTests {
     }
 
     @Test("Older releases are outdated, newer ones pass", arguments: [
-        ("1.2.2", false), ("1.3.1", false), ("1.4.0", false), ("1.4.1", true), ("1.4.2", true), ("2.0.0", true),
+        ("1.4.1", false), ("1.5.0", false), ("1.5.9", false), ("1.6.0", true), ("1.6.1", true), ("2.0.0", true),
     ])
     func minimum(version: String, meets: Bool) {
         #expect(ContainerVersion.meetsMinimum(version) == meets)
