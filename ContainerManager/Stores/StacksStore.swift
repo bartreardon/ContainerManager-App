@@ -124,7 +124,7 @@ final class StacksStore {
 
     func refresh() async {
         do {
-            let containers = try await ContainerClient().list(filters: ContainerListFilters().withoutMachines())
+            let containers = try await ContainerClient().list(filters: .userContainers)
             var groups: [String: [ContainerSnapshot]] = [:]
             for container in containers {
                 guard let name = container.configuration.labels[StackLabels.stack] else { continue }

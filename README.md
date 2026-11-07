@@ -33,7 +33,7 @@ Full guides live in the **[wiki](https://github.com/bartreardon/ContainerManager
 
 - A Mac with **Apple silicon**.
 - **macOS 26** (the `container` tool relies on its virtualization/networking features).
-- **`container` 1.5.0 or later.** The client libraries are built against 1.6.0 and also work with 1.5 services; features that need 1.6 (such as a custom home folder for a machine account) are hidden on 1.5. Older versions fail obscurely over XPC, so the app detects them and offers to update.
+- **`container` 1.6.1 or later.** The client libraries are built against 1.7.1 and also work with 1.6.1 services. Older versions fail obscurely over XPC, so the app detects them and offers to update.
 - The **`container` tool installed** and its services started:
   ```bash
   container system start
@@ -45,7 +45,7 @@ Full guides live in the **[wiki](https://github.com/bartreardon/ContainerManager
 This is a standard Xcode project; no extra tooling required.
 
 1. Open `ContainerManager.xcodeproj` in Xcode 26 or later.
-2. The app depends on Apple's [`container`](https://github.com/apple/container) Swift package, pinned to an **exact released version** (currently `1.6.0`) as a remote package reference. Pin it to the same version as the `container` CLI you run, so the app and the installed services agree on the base image/kernel references. It also pulls [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (the integrated terminal) as a remote package. Both are fetched automatically — no separate checkout or path setup is required. The first build resolves the full dependency graph (Containerization, NIO, SwiftTerm, etc.) and may take a few minutes.
+2. The app depends on Apple's [`container`](https://github.com/apple/container) Swift package, pinned to an **exact released version** (currently `1.7.1`) as a remote package reference. Pin it to the same version as the `container` CLI you run, so the app and the installed services agree on the base image/kernel references. It also pulls [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (the integrated terminal) as a remote package. Both are fetched automatically — no separate checkout or path setup is required. The first build resolves the full dependency graph (Containerization, NIO, SwiftTerm, etc.) and may take a few minutes.
 3. Build and run the **ContainerManager** scheme.
 
 > [!NOTE]
@@ -76,4 +76,4 @@ A container machine boots the image's init system at `/sbin/init`. Minimal image
 
 ## Status
 
-Built against `apple/container` 1.6.0; the minimum supported is 1.5.0. The `container` project still changes its API between minor releases, so expect to track upstream.
+Built against `apple/container` 1.7.1; the minimum supported is 1.6.1. The `container` project still changes its API between minor releases, so expect to track upstream.

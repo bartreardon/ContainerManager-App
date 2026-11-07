@@ -11,15 +11,16 @@ import Foundation
 enum ContainerVersion {
     /// The minimum container version ContainerManager supports.
     ///
-    /// Older daemons fail obscurely over XPC rather than being told to update. The 1.6
-    /// client libraries still work with 1.5 services, which matters while 1.6.0 has no
-    /// signed installer; features that need 1.6 check `atLeast` against the services.
-    static let minimum = (1, 5, 0)
-    static let minimumString = "1.5.0"
+    /// Older daemons fail obscurely over XPC rather than being told to update. The 1.7
+    /// client libraries ask the services for an image's platforms before creating a
+    /// container, a route that first shipped in 1.6.1. Features newer than the minimum
+    /// check `atLeast` against the services.
+    static let minimum = (1, 6, 1)
+    static let minimumString = "1.6.1"
 
     /// The apple/container package version the app is built against. Keep in step with
     /// the exact-version pin in project.pbxproj.
-    static let linkedLibrary = "1.6.0"
+    static let linkedLibrary = "1.7.1"
 
     /// Extracts the first `major.minor.patch` triple found in the string.
     static func parse(_ string: String) -> (Int, Int, Int)? {
@@ -37,10 +38,6 @@ enum ContainerVersion {
         guard let v = parse(string) else { return false }
         return v >= minimum
     }
-
-    /// Services version that keeps a custom home folder for a machine's account. 1.5
-    /// accepts the account but re-derives /home/<user>.
-    static let machineHome = (1, 6, 0)
 
     /// True when the version in `string` is at least `version`. False if unparseable.
     static func atLeast(_ version: (Int, Int, Int), _ string: String) -> Bool {

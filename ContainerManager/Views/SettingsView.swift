@@ -465,8 +465,8 @@ private struct ServiceDiagnostics: View {
         return service != linked
     }
 
-    /// Supported services older than the client libraries: everything works except
-    /// what's newer, so that's a note rather than the mismatch warning.
+    /// Supported services older than the client libraries: everything the app uses
+    /// works, so that's a note rather than the mismatch warning.
     private var servicesOlderButSupported: Bool {
         guard let service = ContainerVersion.parse(health.apiServerVersion),
             let linked = ContainerVersion.parse(ContainerVersion.linkedLibrary)
@@ -509,7 +509,7 @@ private struct ServiceDiagnostics: View {
         LabeledContent("Client libraries", value: ContainerVersion.linkedLibrary)
         if servicesOlderButSupported {
             Label(
-                "container \(serviceVersion) is supported. Some features need \(ContainerVersion.linkedLibrary) and are hidden until you update.",
+                "container \(serviceVersion) is supported. ContainerManager is built against \(ContainerVersion.linkedLibrary); update when convenient so they match.",
                 systemImage: "info.circle"
             )
             .foregroundStyle(.secondary)
