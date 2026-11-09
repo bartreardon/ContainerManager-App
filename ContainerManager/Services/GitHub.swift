@@ -5,11 +5,13 @@
 
 import Foundation
 
-/// Minimal GitHub REST client: fetches the latest published release for a repo.
+/// Minimal GitHub REST client: fetches published releases for a repo.
 /// Used for the container tool's updates; the app's own come through Sparkle.
 enum GitHub {
     struct Release: Decodable {
         let tagName: String
+        let draft: Bool
+        let prerelease: Bool
         let assets: [Asset]
 
         struct Asset: Decodable {
@@ -24,6 +26,7 @@ enum GitHub {
 
         enum CodingKeys: String, CodingKey {
             case tagName = "tag_name"
+            case draft, prerelease
             case assets
         }
     }
@@ -34,7 +37,17 @@ enum GitHub {
 
     /// Latest release for `owner/repo` (e.g. "apple/container").
     static func latestRelease(repo: String) async throws -> Release {
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!)
+        try await get("https://api.github.com/repos/\(repo)/releases/latest")
+    }
+
+    /// The most recent releases for `owner/repo`, newest first, drafts and prereleases
+    /// included.
+    static func releases(repo: String, count: Int = 10) async throws -> [Release] {
+        try await get("https://api.github.com/repos/\(repo)/releases?per_page=\(count)")
+    }
+
+    private static func get<T: Decodable>(_ url: String) async throws -> T {
+        var request = URLRequest(url: URL(string: url)!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("ContainerManager", forHTTPHeaderField: "User-Agent")
 
@@ -42,6 +55,6 @@ enum GitHub {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw BadResponse()
         }
-        return try JSONDecoder().decode(Release.self, from: data)
+        return try JSONDecoder().decode(T.self, from: data)
     }
 }

@@ -83,9 +83,7 @@ final class ContainersStore {
 
     func refresh() async {
         do {
-            // Machines are backed by containers; hide those like the CLI does.
-            let filters = ContainerListFilters().withoutMachines()
-            containers = try await ContainerClient().list(filters: filters).sorted { $0.id < $1.id }
+            containers = try await ContainerClient().list(filters: .userContainers).sorted { $0.id < $1.id }
         } catch {
             lastError = PresentedError(title: "Failed to load containers", error: error)
         }
@@ -168,4 +166,12 @@ final class ContainersStore {
         }
         await refresh()
     }
+}
+
+extension ContainerListFilters {
+    /// Containers you made yourself. Machines and `container cluster` nodes are backed by
+    /// containers too; hide those like `container ls` does. 1.7 stops the CLI's lifecycle
+    /// commands touching cluster nodes, so the app shouldn't offer them either.
+    static let userContainers = ContainerListFilters()
+        .withoutPlugins([ResourcePluginValues.machine, ResourcePluginValues.cluster])
 }

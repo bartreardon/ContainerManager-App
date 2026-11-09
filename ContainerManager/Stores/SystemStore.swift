@@ -66,6 +66,13 @@ final class SystemStore {
         return false
     }
 
+    /// True when the running services are at least `version`, for features newer than
+    /// the minimum. False while the services' version isn't known.
+    func serviceSupports(_ version: (Int, Int, Int)) -> Bool {
+        guard let health else { return false }
+        return ContainerVersion.atLeast(version, health.apiServerVersion)
+    }
+
     func refresh() async {
         helperStatus = PrivilegedHelper.status
         switch status {
@@ -248,6 +255,7 @@ final class SystemStore {
     /// Outcome of checking one component against its latest GitHub release.
     private enum UpdateOutcome {
         case upToDate(String)   // installed version
+        case unsignedNewer(installed: String, newer: String)  // newer release can't be installed
         case available(String)  // newer version
         case unknown(String)    // reason it couldn't be determined
         case noneFound          // nothing newer found, installed version not confirmed
@@ -278,13 +286,16 @@ final class SystemStore {
             return .unknown("container isn’t installed")
         }
         do {
-            let release = try await ContainerInstaller.latestRelease()
-            if ContainerVersion.isUpdate(latest: release.version, over: current) {
+            let lookup = try await ContainerInstaller.lookup()
+            if let release = lookup.signed, ContainerVersion.isUpdate(latest: release.version, over: current) {
                 let version = displayVersion(release.version)
                 availableUpdate = version
                 return .available(version)
             }
             availableUpdate = nil
+            if let newer = lookup.unsignedNewer, ContainerVersion.isUpdate(latest: newer, over: current) {
+                return .unsignedNewer(installed: displayVersion(current), newer: displayVersion(newer))
+            }
             return .upToDate(displayVersion(current))
         } catch {
             return .unknown(PresentedError.describe(error))
@@ -386,6 +397,8 @@ final class SystemStore {
     private func summaryLine(_ outcome: UpdateOutcome) -> String {
         switch outcome {
         case .upToDate(let version): "\(version) is up to date."
+        case .unsignedNewer(let installed, let newer):
+            "\(installed) is installed. \(newer) has been released without a signed installer, so it can’t be installed from here yet."
         case .available(let version): "Version \(version) is available."
         case .unknown(let reason): "Couldn’t check. \(reason)"
         case .noneFound: "Not available."
